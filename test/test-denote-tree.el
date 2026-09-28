@@ -850,8 +850,11 @@ of the correct '2a1'.  This test documents the bug for an upstream report."
           ;; `denote-rename-file' asks its per-file confirmations via
           ;; `y-or-n-p' (not `yes-or-no-p'); stub that instead so the run
           ;; doesn't block on a real prompt in a batch/daemon test run.
-          (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
-            (denote-sequence-reparent-recursive root-file target))
+          (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) t))
+                    ((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+            (condition-case nil
+                (denote-sequence-reparent-recursive root-file target)
+              ((error quit) nil)))
           (denote-tree-test--kill-dir-buffers dir)
           ;; Correct: child suffix "a" (letter in digit-ending ctx) → "1" (digit in letter-ending ctx)
           ;; Upstream bug: produces "2aa" — this assertion fails, confirming the bug
@@ -883,9 +886,11 @@ operation — as `denote-tree-reparent-recursive' does."
                      (lambda (&rest _)
                        (setq call-count (1+ call-count))
                        ;; Accept the first file prompt, decline the rest
-                       (= call-count 1))))
-            (ignore-errors
-              (denote-sequence-reparent-recursive root-file target-file)))
+                       (= call-count 1)))
+                    ((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+            (condition-case nil
+                (denote-sequence-reparent-recursive root-file target-file)
+              ((error quit) nil)))
           (denote-tree-test--kill-dir-buffers dir)
           ;; Each per-file rename is atomic: declining its prompt just skips
           ;; that file rather than leaving a duplicate old+new pair.  
