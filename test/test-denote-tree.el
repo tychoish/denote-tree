@@ -82,10 +82,10 @@ ID is the timestamp string, SIG the sequence or nil, TITLE the note title."
                       dir "20240101T120000" nil "Plain Note"))
                ;; Manually rename to add ==1a without updating frontmatter
                (new-name (expand-file-name
-                          "20240101T120000==1a--plain-note.org" dir))
-               (_ (rename-file file new-name))
-               (denote-directory (list dir)))
-          (should-not (denote-tree--sequence-aligned-p new-name)))
+                          "20240101T120000==1a--plain-note.org" dir)))
+          (rename-file file new-name)
+          (let ((denote-directory (list dir)))
+            (should-not (denote-tree--sequence-aligned-p new-name))))
       (delete-directory dir t))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
