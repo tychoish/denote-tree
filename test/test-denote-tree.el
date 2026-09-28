@@ -124,19 +124,19 @@ ID is the timestamp string, SIG the sequence or nil, TITLE the note title."
 ;; denote-tree-swap-with-parent (file-based)
 
 (defun denote-tree-test--kill-dir-buffers (dir)
-  "Kill all buffers whose file is under DIR.
-Clears the modified flag on each buffer first: `kill-buffer' unconditionally
-calls `kill-buffer--possibly-save' (via `read-multiple-choice') for a
-modified file-visiting buffer regardless of `kill-buffer-query-functions',
-so a freshly `denote'-created note that was never saved would otherwise
-block on a \"Buffer modified; kill anyway?\" prompt."
-  (let ((exp-dir (expand-file-name dir)))
+  "Kill all buffers whose file or `default-directory' is under DIR.
+Clears the modified flag on each buffer first and suppresses query functions
+so `kill-buffer' will never prompt in batch mode."
+  (let ((exp-dir (expand-file-name dir))
+        (kill-buffer-query-functions nil))
     (seq-do (lambda (buf)
               (let ((f (buffer-file-name buf))
                     (d (buffer-local-value 'default-directory buf)))
                 (when (or (and f (string-prefix-p exp-dir (expand-file-name f)))
                           (and d (string-prefix-p exp-dir (expand-file-name d))))
-                  (with-current-buffer buf (set-buffer-modified-p nil))
+                  (with-current-buffer buf
+                    (set-buffer-modified-p nil)
+                    (buffer-disable-undo))
                   (ignore-errors (kill-buffer buf)))))
             (buffer-list))))
 
@@ -854,14 +854,15 @@ of the correct '2a1'.  This test documents the bug for an upstream report."
           ;; `y-or-n-p' (not `yes-or-no-p'); stub that instead so the run
           ;; doesn't block on a real prompt in a batch/daemon test run.
           (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) t))
-                    ((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+                    ((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                    ((symbol-function 'read-multiple-choice) (lambda (&rest _) '(?y "yes"))))
             (condition-case nil
                 (denote-sequence-reparent-recursive root-file target)
-              ((error quit) nil)))
-          (denote-tree-test--kill-dir-buffers dir)
-          ;; Correct: child suffix "a" (letter in digit-ending ctx) → "1" (digit in letter-ending ctx)
-          ;; Upstream bug: produces "2aa" — this assertion fails, confirming the bug
-          (should (directory-files dir nil "20240101T110000==2a1--")))
+              ((error quit) nil))
+            (denote-tree-test--kill-dir-buffers dir)
+            ;; Correct: child suffix "a" (letter in digit-ending ctx) → "1" (digit in letter-ending ctx)
+            ;; Upstream bug: produces "2aa" — this assertion fails, confirming the bug
+            (should (directory-files dir nil "20240101T110000==2a1--"))))
       (ignore-errors (denote-tree-test--kill-dir-buffers dir))
       (ignore-errors (delete-directory dir t)))))
 
@@ -890,14 +891,15 @@ operation — as `denote-tree-reparent-recursive' does."
                        (setq call-count (1+ call-count))
                        ;; Accept the first file prompt, decline the rest
                        (= call-count 1)))
-                    ((symbol-function 'yes-or-no-p) (lambda (&rest _) t)))
+                    ((symbol-function 'yes-or-no-p) (lambda (&rest _) t))
+                    ((symbol-function 'read-multiple-choice) (lambda (&rest _) '(?y "yes"))))
             (condition-case nil
                 (denote-sequence-reparent-recursive root-file target-file)
-              ((error quit) nil)))
-          (denote-tree-test--kill-dir-buffers dir)
-          ;; Each per-file rename is atomic: declining its prompt just skips
-          ;; that file rather than leaving a duplicate old+new pair.  
-          (should-not (file-exists-p child-file)))
+              ((error quit) nil))
+            (denote-tree-test--kill-dir-buffers dir)
+            ;; Each per-file rename is atomic: declining its prompt just skips
+            ;; that file rather than leaving a duplicate old+new pair.  
+            (should-not (file-exists-p child-file))))
       (ignore-errors (denote-tree-test--kill-dir-buffers dir))
       (ignore-errors (delete-directory dir t)))))
 
