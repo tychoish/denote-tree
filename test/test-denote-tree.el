@@ -130,12 +130,15 @@ calls `kill-buffer--possibly-save' (via `read-multiple-choice') for a
 modified file-visiting buffer regardless of `kill-buffer-query-functions',
 so a freshly `denote'-created note that was never saved would otherwise
 block on a \"Buffer modified; kill anyway?\" prompt."
-  (seq-do (lambda (buf)
-            (when-let* ((f (buffer-file-name buf)))
-              (when (string-prefix-p (expand-file-name dir) (expand-file-name f))
-                (with-current-buffer buf (set-buffer-modified-p nil))
-                (kill-buffer buf))))
-          (buffer-list)))
+  (let ((exp-dir (expand-file-name dir)))
+    (seq-do (lambda (buf)
+              (let ((f (buffer-file-name buf))
+                    (d (buffer-local-value 'default-directory buf)))
+                (when (or (and f (string-prefix-p exp-dir (expand-file-name f)))
+                          (and d (string-prefix-p exp-dir (expand-file-name d))))
+                  (with-current-buffer buf (set-buffer-modified-p nil))
+                  (ignore-errors (kill-buffer buf)))))
+            (buffer-list))))
 
 (ert-deftest denote-tree-test/swap-with-parent-renames-files ()
   "Swap exchanges the ==SEQ== component in both filenames."
@@ -155,8 +158,8 @@ block on a \"Buffer modified; kill anyway?\" prompt."
           (should (directory-files dir nil "20240101T110000==1a--"))
           ;; The file whose timestamp was 100000 now carries sequence 1a1
           (should (directory-files dir nil "20240101T100000==1a1--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-parent-updates-frontmatter ()
   "Swap updates #+signature: in both files to match the new filename."
@@ -183,8 +186,8 @@ block on a \"Buffer modified; kill anyway?\" prompt."
             (with-temp-buffer
               (insert-file-contents new-parent)
               (should (search-forward "#+signature: 1a1" nil t)))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-parent-no-stale-buffers ()
   "After swap, no buffer visits a path that no longer exists."
@@ -204,8 +207,8 @@ block on a \"Buffer modified; kill anyway?\" prompt."
           ;; No buffer should point to the old paths (they no longer exist)
           (should-not (find-buffer-visiting parent-file))
           (should-not (find-buffer-visiting child-file)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-parent-remaps-persisted-fold ()
   "A persisted fold entry follows its sequence through the swap."
@@ -223,8 +226,8 @@ block on a \"Buffer modified; kill anyway?\" prompt."
           (denote-tree-test--kill-dir-buffers dir)
           ;; "1a1" (the folded child) is now at "1a"
           (should (equal '("1a") denote-tree-hierarchy-fold-sequences)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree-swap-with-previous / denote-tree-swap-with-next (file-based)
@@ -254,8 +257,8 @@ Branch one is 1/1a/1a1, branch two is 2/2a; 1 and 2 are root siblings."
           (should (directory-files dir nil "20240101T120000==2a1--"))
           (should (directory-files dir nil "20240101T130000==1--"))
           (should (directory-files dir nil "20240101T140000==1a--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-previous-moves-subtree-recursively ()
   "Swapping root 2 with previous sibling 1 gives the same result as swap-with-next."
@@ -273,8 +276,8 @@ Branch one is 1/1a/1a1, branch two is 2/2a; 1 and 2 are root siblings."
           (should (directory-files dir nil "20240101T120000==2a1--"))
           (should (directory-files dir nil "20240101T130000==1--"))
           (should (directory-files dir nil "20240101T140000==1a--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-next-updates-frontmatter-recursively ()
   "Frontmatter signature is fixed on descendants too, not just the swapped roots."
@@ -292,8 +295,8 @@ Branch one is 1/1a/1a1, branch two is 2/2a; 1 and 2 are root siblings."
             (with-temp-buffer
               (insert-file-contents grandchild)
               (should (search-forward "#+signature: 2a1" nil t)))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-previous-errors-when-first ()
   "The first sibling has no previous sibling to swap with."
@@ -303,8 +306,8 @@ Branch one is 1/1a/1a1, branch two is 2/2a; 1 and 2 are root siblings."
                (denote-directory (list dir)))
           (with-current-buffer (find-file-noselect (plist-get tree :root1))
             (should-error (denote-tree-swap-with-previous) :type 'user-error)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-next-errors-when-last ()
   "The last sibling has no next sibling to swap with."
@@ -314,8 +317,8 @@ Branch one is 1/1a/1a1, branch two is 2/2a; 1 and 2 are root siblings."
                (denote-directory (list dir)))
           (with-current-buffer (find-file-noselect (plist-get tree :root2))
             (should-error (denote-tree-swap-with-next) :type 'user-error)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-next-no-stale-buffers ()
   "After a subtree swap, no buffer visits a path that no longer exists."
@@ -332,8 +335,8 @@ Branch one is 1/1a/1a1, branch two is 2/2a; 1 and 2 are root siblings."
           (should-not (find-buffer-visiting (plist-get tree :root1)))
           (should-not (find-buffer-visiting (plist-get tree :grandchild1)))
           (should-not (find-buffer-visiting (plist-get tree :child2))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree-reparent-recursive
@@ -360,8 +363,8 @@ not \"2aa\"."
           ;; "1a1a": suffix "a" (letter) in old context (digit-ending "1a1"),
           ;; rewritten to digit "1" in new context (letter-ending "2a")
           (should (directory-files dir nil "20240101T110000==2a1--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/reparent-recursive-same-type-no-change ()
   "When old and new roots end in the same type, suffix characters are preserved."
@@ -381,8 +384,8 @@ not \"2aa\"."
           ;; "1a1": suffix "1" (digit) in old context (letter-ending "1a"),
           ;; new root "2a1" ends digit → children are letters → "a"
           (should (directory-files dir nil "20240101T110000==2a1a--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/reparent-nil-target-promotes-to-root ()
   "A nil FILE-WITH-SEQUENCE promotes the file to a new top-level sequence."
@@ -395,8 +398,8 @@ not \"2aa\"."
           (denote-tree-reparent root-file nil)
           (denote-tree-test--kill-dir-buffers dir)
           (should (directory-files dir nil "20240101T100000==2--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/reparent-recursive-nil-target-promotes-subtree-to-root ()
   "A nil FILE-WITH-SEQUENCE with RECURSIVE promotes CURRENT-FILE and its
@@ -414,8 +417,8 @@ descendants to a new top-level sequence, instead of requiring
           (denote-tree-test--kill-dir-buffers dir)
           (should (directory-files dir nil "20240101T100000==2--"))
           (should (directory-files dir nil "20240101T110000==2a--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree-renumber-recursive
@@ -437,8 +440,8 @@ digit (letter-children).  The child \"1a1\" (digit suffix \"1\") must become
           (denote-tree-test--kill-dir-buffers dir)
           (should (directory-files dir nil "20240101T100000==9--"))
           (should (directory-files dir nil "20240101T110000==9a--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/renumber-recursive-same-type-no-change ()
   "When old root and new sequence end in the same type, suffixes are preserved."
@@ -454,8 +457,8 @@ digit (letter-children).  The child \"1a1\" (digit suffix \"1\") must become
           (denote-tree-test--kill-dir-buffers dir)
           (should (directory-files dir nil "20240101T100000==9a--"))
           (should (directory-files dir nil "20240101T110000==9a1--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/renumber-recursive-remaps-persisted-fold ()
   "Persisted folds on the root and a descendant follow the renumber."
@@ -471,8 +474,8 @@ digit (letter-children).  The child \"1a1\" (digit suffix \"1\") must become
             (denote-tree-renumber-recursive root-file "9"))
           (denote-tree-test--kill-dir-buffers dir)
           (should (equal '("9" "9a") denote-tree-hierarchy-fold-sequences)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/renumber-recursive-errors-without-sequence ()
   "Renumbering a file with no existing sequence signals a user-error."
@@ -483,8 +486,8 @@ digit (letter-children).  The child \"1a1\" (digit suffix \"1\") must become
                (denote-directory (list dir))
                (root-file (car (directory-files dir t "20240101T100000"))))
           (should-error (denote-tree-renumber-recursive root-file "9") :type 'user-error))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree-insert-sequence-note
@@ -518,8 +521,8 @@ single top-level `yes-or-no-p' confirmation is enough."
           (should (directory-files dir nil "20240101T100000==2--"))
           ;; "Two" (was "2") shifted forward to "3"
           (should (directory-files dir nil "20240101T110000==3--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree-repack-children
@@ -537,8 +540,8 @@ single top-level `yes-or-no-p' confirmation is enough."
           ;; "1" stays "1", "3" compacts to "2"
           (should (directory-files dir nil "20240101T100000==1--"))
           (should (directory-files dir nil "20240101T110000==2--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/repack-letter-children-compact-gaps ()
   "Children of a digit-ending prefix use letters; gaps are compacted."
@@ -555,8 +558,8 @@ single top-level `yes-or-no-p' confirmation is enough."
           ;; k (11th letter) → a, l (12th letter) → b
           (should (directory-files dir nil "20240101T100000==3a6a--"))
           (should (directory-files dir nil "20240101T110000==3a6b--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/repack-propagates-to-subtree ()
   "Repacking a child also renames that child's descendants."
@@ -573,8 +576,8 @@ single top-level `yes-or-no-p' confirmation is enough."
           ;; 3a6k → 3a6a; its child 3a6k1 must follow → 3a6a1
           (should (directory-files dir nil "20240101T100000==3a6a--"))
           (should (directory-files dir nil "20240101T110000==3a6a1--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/repack-no-gaps-is-noop ()
   "Repack does nothing and emits a message when sequences are already compact."
@@ -589,8 +592,8 @@ single top-level `yes-or-no-p' confirmation is enough."
           (denote-tree-test--kill-dir-buffers dir)
           (should (directory-files dir nil "20240101T100000==3a6a--"))
           (should (directory-files dir nil "20240101T110000==3a6b--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/repack-declining-confirmation-changes-nothing ()
   "Declining the preview confirmation leaves every file untouched."
@@ -605,8 +608,8 @@ single top-level `yes-or-no-p' confirmation is enough."
           ;; "3" was NOT compacted to "2" since the user declined
           (should (directory-files dir nil "20240101T100000==1--"))
           (should (directory-files dir nil "20240101T110000==3--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/repack-preview-buffer-lists-every-rename ()
   "The preview buffer lists every file that will be renamed, old and new."
@@ -678,8 +681,8 @@ Reproduces a real bug: repacking 1,2,4,5 (gap at 3) used to leave both
           (should (directory-files dir nil "20240101T120000==3--"))
           ;; "Five" must land on its own sequence "4", not collide with "Four"
           (should (directory-files dir nil "20240101T130000==4--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/repack-multiple-gaps-preserves-subtrees ()
   "Compacting multiple gapped children keeps each child's own descendants.
@@ -704,8 +707,8 @@ unrelated subtrees onto the same signature."
           (should (directory-files dir nil "20240101T130000==4--"))
           ;; FiveChild must follow Five to "4a", not also land on "3a"
           (should (directory-files dir nil "20240101T135000==4a--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/repack-orders-numerically-not-lexicographically ()
   "Children are ordered by sequence value, not by raw string comparison.
@@ -724,8 +727,8 @@ the *second* slot instead of the first."
           ;; Numeric order is 2 < 10, so "Two" takes the first slot
           (should (directory-files dir nil "20240101T100000==1--"))
           (should (directory-files dir nil "20240101T110000==2--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -749,8 +752,8 @@ the *second* slot instead of the first."
           ;; Original paths must not exist
           (should-not (file-exists-p parent-file))
           (should-not (file-exists-p child-file)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-parent-exactly-two-files ()
   "After swap, the directory contains exactly the two renamed files — no extras."
@@ -766,8 +769,8 @@ the *second* slot instead of the first."
               (denote-tree-swap-with-parent)))
           (denote-tree-test--kill-dir-buffers dir)
           (should (= 2 (length (directory-files dir nil "\\.org$")))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree-reparent-recursive — no-legacy-file guarantee
@@ -790,8 +793,8 @@ the *second* slot instead of the first."
           ;; New files must exist
           (should (directory-files dir nil "20240101T100000==2a--"))
           (should (directory-files dir nil "20240101T110000==2a1--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/reparent-recursive-no-stale-buffers ()
   "After reparent-recursive, no buffer visits a path that no longer exists."
@@ -809,8 +812,8 @@ the *second* slot instead of the first."
           (denote-tree-test--kill-dir-buffers dir)
           (should-not (find-buffer-visiting root-file))
           (should-not (find-buffer-visiting child-file)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; upstream denote-sequence-reparent-recursive — bug confirmation tests
@@ -859,8 +862,8 @@ of the correct '2a1'.  This test documents the bug for an upstream report."
           ;; Correct: child suffix "a" (letter in digit-ending ctx) → "1" (digit in letter-ending ctx)
           ;; Upstream bug: produces "2aa" — this assertion fails, confirming the bug
           (should (directory-files dir nil "20240101T110000==2a1--")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/upstream-reparent-recursive-legacy-files ()
   "Upstream denote-sequence-reparent-recursive leaves the tree half-migrated
@@ -895,8 +898,8 @@ operation — as `denote-tree-reparent-recursive' does."
           ;; Each per-file rename is atomic: declining its prompt just skips
           ;; that file rather than leaving a duplicate old+new pair.  
           (should-not (file-exists-p child-file)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree--retag-apply
@@ -984,8 +987,8 @@ instead."
                                    (denote-tree-test--find-by-identifier dir "20240101T100000"))))
           (should (member "gamma" (denote-extract-keywords-from-path
                                    (denote-tree-test--find-by-identifier dir "20240101T110000")))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/retag-sequence-remove-does-not-prompt-per-file ()
   "The subtree-wide rename loop suppresses per-file confirmation prompts."
@@ -1010,8 +1013,8 @@ instead."
                                        (denote-tree-test--find-by-identifier dir "20240101T100000"))))
           (should-not (member "alpha" (denote-extract-keywords-from-path
                                        (denote-tree-test--find-by-identifier dir "20240101T110000")))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/retag-sequence-replace-only-touches-files-with-old-keyword ()
   "Replace swaps the keyword only on files that carry the old one, and
@@ -1042,8 +1045,8 @@ not add the new keyword to files that never had the old one."
           ;; Child never had "alpha": left with "beta" only, no "gamma" added.
           (should (equal '("beta") (denote-extract-keywords-from-path
                                     (denote-tree-test--find-by-identifier dir "20240101T110000")))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/retag-sequence-add-skips-files-that-already-have-it ()
   "Adding a keyword the root already has, but a descendant lacks, only
@@ -1067,8 +1070,8 @@ renames the descendant."
                                      (denote-tree-test--find-by-identifier dir "20240101T100000"))))
           (should (equal '("beta" "gamma") (denote-extract-keywords-from-path
                                             (denote-tree-test--find-by-identifier dir "20240101T110000")))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/retag-sequence-no-affected-files-errors ()
   "If no file in the subtree is affected by the operation, error out instead
@@ -1088,8 +1091,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
                     ((symbol-function 'denote-tree--target-file) (lambda () root)))
             (should-error (denote-tree-retag-sequence) :type 'user-error))
           (should (member "alpha" (denote-extract-keywords-from-path root))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/retag-sequence-declining-confirmation-changes-nothing ()
   "Declining the single top-level confirmation leaves every file untouched."
@@ -1107,8 +1110,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
             (ignore-errors (denote-tree-retag-sequence)))
           (should (member "alpha" (denote-extract-keywords-from-path root)))
           (should-not (member "gamma" (denote-extract-keywords-from-path root))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1161,8 +1164,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
                (entry (denote-tree--format-lint-entry aligned)))
           (should (string-match-p "filename=1" entry))
           (should (string-match-p "frontmatter=1" entry)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/lint-sequences-buffer ()
   "Lint sequences command populates the report buffer."
@@ -1188,8 +1191,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
         (let ((note (denote-tree-test--make-org-note dir "20240101T100000" nil "NoSeq")))
           (cl-letf (((symbol-function 'denote-tree--target-file) (lambda () note)))
             (should-error (denote-tree-swap-with-parent) :type 'user-error)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-parent-root-sequence-error ()
   "Swapping with parent errors when target note is a root sequence."
@@ -1199,8 +1202,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
         (let ((root (denote-tree-test--make-org-note dir "20240101T100000" "1" "Root")))
           (cl-letf (((symbol-function 'denote-tree--target-file) (lambda () root)))
             (should-error (denote-tree-swap-with-parent) :type 'user-error)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/swap-with-parent-cancelled ()
   "Declining confirmation in swap-with-parent cancels without modifying files."
@@ -1214,8 +1217,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
             (should-error (denote-tree-swap-with-parent) :type 'user-error))
           (should (file-exists-p p))
           (should (file-exists-p c)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/insert-sequence-note-no-sequence-error ()
   "Inserting sequence note errors when target note has no sequence ID."
@@ -1225,8 +1228,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
         (let ((note (denote-tree-test--make-org-note dir "20240101T100000" nil "NoSeq")))
           (cl-letf (((symbol-function 'denote-tree--target-file) (lambda () note)))
             (should-error (denote-tree-insert-sequence-note) :type 'user-error)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/insert-sequence-note-cancelled ()
   "Declining confirmation cancels insert without modifying files."
@@ -1238,8 +1241,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
                     ((symbol-function 'yes-or-no-p) (lambda (&rest _) nil)))
             (should-error (denote-tree-insert-sequence-note) :type 'user-error))
           (should (file-exists-p note)))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/following-siblings-descending-order ()
   "Following siblings returns matching siblings in descending sequence order."
@@ -1254,8 +1257,8 @@ of silently doing nothing (or, worse, touching files it shouldn't)."
           (should (= 2 (length sibs)))
           (should (equal f3 (car sibs)))
           (should (equal f2 (cadr sibs))))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 
 (defun denote-tree-test--insert-hierarchy-tree (tree)
@@ -1537,8 +1540,8 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
           (should hook-args)
           (should (equal (car hook-args) "1"))
           (should (equal (cadr hook-args) "2")))
-      (denote-tree-test--kill-dir-buffers dir)
-      (delete-directory dir t))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
 
 (provide 'test-denote-tree)
 ;;; test-denote-tree.el ends here
