@@ -842,7 +842,8 @@ the *second* slot instead of the first."
 Expected FAILURE with upstream: child '1a1a' is renamed to '2aa' instead
 of the correct '2a1'.  This test documents the bug for an upstream report."
   :expected-result :failed
-  (let ((dir (make-temp-file "denote-tree-test-upstream-" t)))
+  (let ((dir (make-temp-file "denote-tree-test-upstream-" t))
+        (found-correct-file nil))
     (unwind-protect
         (let* ((denote-sequence-scheme 'alphanumeric)
                (_root   (denote-tree-test--make-org-note dir "20240101T100000" "1a1"  "Root"))
@@ -858,13 +859,14 @@ of the correct '2a1'.  This test documents the bug for an upstream report."
                     ((symbol-function 'read-multiple-choice) (lambda (&rest _) '(?y "yes"))))
             (condition-case nil
                 (denote-sequence-reparent-recursive root-file target)
-              ((error quit) nil))
-            (denote-tree-test--kill-dir-buffers dir)
-            ;; Correct: child suffix "a" (letter in digit-ending ctx) → "1" (digit in letter-ending ctx)
-            ;; Upstream bug: produces "2aa" — this assertion fails, confirming the bug
-            (should (directory-files dir nil "20240101T110000==2a1--"))))
+              ((error quit) nil)))
+          (setq found-correct-file (directory-files dir nil "20240101T110000==2a1--")))
       (ignore-errors (denote-tree-test--kill-dir-buffers dir))
-      (ignore-errors (delete-directory dir t)))))
+      (ignore-errors (delete-directory dir t)))
+    ;; Check assertion outside unwind-protect
+    ;; Correct: child suffix "a" (letter in digit-ending ctx) → "1" (digit in letter-ending ctx)
+    ;; Upstream bug: produces "2aa" — this assertion fails, confirming the bug
+    (should found-correct-file)))
 
 (ert-deftest denote-tree-test/upstream-reparent-recursive-legacy-files ()
   "Upstream denote-sequence-reparent-recursive leaves the tree half-migrated
@@ -873,7 +875,8 @@ Expected FAILURE with upstream when `denote-rename-confirmations' is non-nil.
 Demonstrates the need to suppress `denote-rename-confirmations' around the
 operation — as `denote-tree-reparent-recursive' does."
   :expected-result :failed
-  (let ((dir (make-temp-file "denote-tree-test-upstream-" t)))
+  (let ((dir (make-temp-file "denote-tree-test-upstream-" t))
+        (child-still-exists nil))
     (unwind-protect
         (let* ((denote-sequence-scheme 'alphanumeric)
                (root-file   (denote-tree-test--make-org-note dir "20240101T100000" "1a"  "Root"))
@@ -895,13 +898,13 @@ operation — as `denote-tree-reparent-recursive' does."
                     ((symbol-function 'read-multiple-choice) (lambda (&rest _) '(?y "yes"))))
             (condition-case nil
                 (denote-sequence-reparent-recursive root-file target-file)
-              ((error quit) nil))
-            (denote-tree-test--kill-dir-buffers dir)
-            ;; Each per-file rename is atomic: declining its prompt just skips
-            ;; that file rather than leaving a duplicate old+new pair.  
-            (should-not (file-exists-p child-file))))
+              ((error quit) nil)))
+          (setq child-still-exists (file-exists-p child-file)))
       (ignore-errors (denote-tree-test--kill-dir-buffers dir))
-      (ignore-errors (delete-directory dir t)))))
+      (ignore-errors (delete-directory dir t)))
+    ;; Check assertion outside unwind-protect so cleanup is guaranteed to have
+    ;; finished before ert-test-failed is signaled, preventing any non-local exit abort.
+    (should-not child-still-exists)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree--retag-apply
