@@ -1556,5 +1556,148 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
       (ignore-errors (denote-tree-test--kill-dir-buffers dir))
       (ignore-errors (delete-directory dir t)))))
 
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Context-aware DWIM target resolution & sequence creation tests
+
+(ert-deftest denote-tree-test/file-at-point-buffer ()
+  "Resolves visited file when visiting a Denote note buffer."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((tree (denote-tree-test--make-tree dir))
+               (file (plist-get tree :child1)))
+          (with-current-buffer (find-file-noselect file)
+            (should (equal (denote-tree-file-at-point) file))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/file-at-point-hierarchy ()
+  "Resolves file from `denote-sequence-hierarchy-file' property."
+  (let ((fake-file "/tmp/fake-note.org"))
+    (with-temp-buffer
+      (denote-sequence-hierarchy-mode)
+      (let ((inhibit-read-only t))
+        (insert (propertize "1a Child One" 'denote-sequence-hierarchy-file fake-file)))
+      (goto-char (point-min))
+      (should (equal (denote-tree-file-at-point) fake-file)))))
+
+(ert-deftest denote-tree-test/file-at-point-tabulated-list ()
+  "Resolves file from tabulated list row ID."
+  (let ((fake-file (make-temp-file "denote-tree-tab-" nil ".org")))
+    (unwind-protect
+        (with-temp-buffer
+          (tabulated-list-mode)
+          (cl-letf (((symbol-function 'tabulated-list-get-id) (lambda () fake-file)))
+            (should (equal (denote-tree-file-at-point) fake-file))))
+      (when (file-exists-p fake-file) (delete-file fake-file)))))
+
+(ert-deftest denote-tree-test/target-file-from-context ()
+  "Resolves target file from context when prefix argument is nil."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((tree (denote-tree-test--make-tree dir))
+               (file (plist-get tree :child1))
+               (current-prefix-arg nil))
+          (with-current-buffer (find-file-noselect file)
+            (should (equal (denote-tree-target-file nil t) file))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/target-file-bypasses-context-with-prefix-arg ()
+  "Universal prefix argument C-u forces prompt selection even if in context."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((tree (denote-tree-test--make-tree dir))
+               (file (plist-get tree :child1))
+               (prompt-target (plist-get tree :root2))
+               (current-prefix-arg '(4))
+               prompt-called)
+          (with-current-buffer (find-file-noselect file)
+            (cl-letf (((symbol-function 'denote-tree-note-prompt)
+                       (lambda (&rest _)
+                         (setq prompt-called t)
+                         prompt-target)))
+              (let ((result (denote-tree-target-file nil t)))
+                (should prompt-called)
+                (should (equal result prompt-target))))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/target-file-prompts-when-note-lacks-sequence ()
+  "Prompts when context note has no sequence but require-sequence is non-nil."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((tree (denote-tree-test--make-tree dir))
+               (no-seq (denote-tree-test--make-org-note dir "20240101T150000" nil "No Sequence Note"))
+               (prompt-target (plist-get tree :root1))
+               (current-prefix-arg nil)
+               prompt-called)
+          (with-current-buffer (find-file-noselect no-seq)
+            (cl-letf (((symbol-function 'denote-tree-note-prompt)
+                       (lambda (&rest _)
+                         (setq prompt-called t)
+                         prompt-target)))
+              (let ((result (denote-tree-target-file nil t)))
+                (should prompt-called)
+                (should (equal result prompt-target))))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/new-sibling-derives-sibling ()
+  "Creating a new sibling on sequence note sets denote-use-signature correctly."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((denote-sequence-scheme 'alphanumeric)
+               (tree (denote-tree-test--make-tree dir))
+               (denote-directory (list dir))
+               (file (plist-get tree :grandchild1)) ; sequence is "1a1"
+               captured-sig)
+          (with-current-buffer (find-file-noselect file)
+            (cl-letf (((symbol-function 'call-interactively)
+                       (lambda (cmd &rest _)
+                         (when (eq cmd 'denote)
+                           (setq captured-sig denote-use-signature)))))
+              (denote-tree-new-sibling)
+              (should (equal captured-sig "1a2")))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/new-child-derives-child ()
+  "Creating a new child on sequence note sets denote-use-signature correctly."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((denote-sequence-scheme 'alphanumeric)
+               (tree (denote-tree-test--make-tree dir))
+               (denote-directory (list dir))
+               (file (plist-get tree :root1)) ; sequence is "1"
+               captured-sig)
+          (with-current-buffer (find-file-noselect file)
+            (cl-letf (((symbol-function 'call-interactively)
+                       (lambda (cmd &rest _)
+                         (when (eq cmd 'denote)
+                           (setq captured-sig denote-use-signature)))))
+              (denote-tree-new-child)
+              (should (equal captured-sig "1b")))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/new-parent-creates-parent ()
+  "Creating a new parent sets denote-use-signature to new root."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((denote-sequence-scheme 'alphanumeric)
+               (tree (denote-tree-test--make-tree dir))
+               (denote-directory (list dir))
+               captured-sig)
+          (cl-letf (((symbol-function 'call-interactively)
+                     (lambda (cmd &rest _)
+                       (when (eq cmd 'denote)
+                         (setq captured-sig denote-use-signature)))))
+            (denote-tree-new-parent)
+            ;; Since 1 and 2 exist, new parent root is "3"
+            (should (equal captured-sig "3"))))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
 (provide 'test-denote-tree)
 ;;; test-denote-tree.el ends here
