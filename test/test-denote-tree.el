@@ -1474,7 +1474,11 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
 (ert-deftest denote-tree-test/hierarchy-fold-sequences-persisted-via-savehist ()
   "The fold-sequences variable is registered for `savehist-mode' persistence."
   (require 'savehist)
-  (should (memq 'denote-tree-hierarchy-fold-sequences savehist-additional-variables)))
+  (should (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
+  (let ((savehist-additional-variables nil))
+    (denote-tree--register-savehist-variables)
+    (should (memq 'denote-tree-hierarchy-fold-sequences
+                  savehist-additional-variables))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree--hierarchy-remap-fold-sequence-prefix / --swap-fold-sequence*
