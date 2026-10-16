@@ -1372,7 +1372,8 @@ already carry the old one."
 ;;;###autoload
 (defun denote-tree-new-sibling (&optional file)
   "Create a new sibling sequence note of FILE.
-When FILE is nil, resolves it via `denote-tree-target-file' (requiring a sequence).
+When FILE is nil, resolves it via `denote-tree-target-file'
+(requiring a sequence).
 When `current-prefix-arg' is non-nil, prompts for the sequence note.
 Creates a new note whose signature is the next sibling of FILE's sequence."
   (interactive
@@ -1388,7 +1389,8 @@ Creates a new note whose signature is the next sibling of FILE's sequence."
 ;;;###autoload
 (defun denote-tree-new-child (&optional file)
   "Create a new child sequence note of FILE.
-When FILE is nil, resolves it via `denote-tree-target-file' (requiring a sequence).
+When FILE is nil, resolves it via `denote-tree-target-file'
+(requiring a sequence).
 When `current-prefix-arg' is non-nil, prompts for the sequence note.
 Creates a new note whose signature is the next child of FILE's sequence."
   (interactive
