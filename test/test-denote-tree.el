@@ -1587,8 +1587,10 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
     (unwind-protect
         (with-temp-buffer
           (tabulated-list-mode)
-          (cl-letf (((symbol-function 'tabulated-list-get-id) (lambda () fake-file)))
-            (should (equal (denote-tree-file-at-point) fake-file))))
+          (let ((inhibit-read-only t))
+            (insert (propertize "row" 'tabulated-list-id fake-file)))
+          (goto-char (point-min))
+          (should (equal (denote-tree-file-at-point) fake-file)))
       (when (file-exists-p fake-file) (delete-file fake-file)))))
 
 (ert-deftest denote-tree-test/target-file-from-context ()
