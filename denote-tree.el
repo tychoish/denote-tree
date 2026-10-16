@@ -571,8 +571,15 @@ filename and frontmatter signatures."
   (interactive)
   (add-hook 'flymake-diagnostic-functions #'denote-tree-flymake nil t))
 
-(with-eval-after-load 'flycheck
-  (when (fboundp 'flycheck-define-generic-checker)
+(defvar flycheck-checkers)
+(declare-function flycheck-define-generic-checker "flycheck")
+(declare-function flycheck-error-new-at "flycheck")
+
+;;;###autoload
+(defun denote-tree-setup-flycheck ()
+  "Define and register the Denote sequence Flycheck checker.
+Intended for `flycheck-mode-hook'; does nothing once registered."
+  (unless (memq 'denote-tree-sequence flycheck-checkers)
     (flycheck-define-generic-checker 'denote-tree-sequence
       "Flycheck checker for Denote sequence signature frontmatter alignment."
       :start (lambda (checker callback)
@@ -596,6 +603,8 @@ filename and frontmatter signatures."
       :modes '(org-mode markdown-mode text-mode)
       :predicate (lambda () (and buffer-file-name (denote-file-has-identifier-p buffer-file-name))))
     (add-to-list 'flycheck-checkers 'denote-tree-sequence t)))
+
+(add-hook 'flycheck-mode-hook #'denote-tree-setup-flycheck)
 
 ;;; Sequence repack
 
@@ -1412,25 +1421,28 @@ Like `denote-sequence-new-parent'."
          (denote-use-signature new-sequence))
     (call-interactively 'denote)))
 
-(with-eval-after-load 'savehist
+(defun denote-tree--register-savehist-variables ()
+  "Add denote-tree's persisted variables to `savehist-additional-variables'."
   (add-to-list 'savehist-additional-variables 'denote-tree-hierarchy-fold-sequences))
 
-(with-eval-after-load 'denote-sequence
-  (when (boundp 'denote-sequence-hierarchy-mode-map)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "s")   #'denote-tree-new-sibling)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "c")   #'denote-tree-new-child)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "p")   #'denote-tree-new-parent)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "r")   #'denote-tree-repack-children)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "C-r") #'denote-tree-repack-children)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "M-r") #'denote-tree-swap-with-parent)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "M-p") #'denote-tree-swap-with-previous)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "M-n") #'denote-tree-swap-with-next)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "m")   #'denote-tree-reparent)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "u")   #'denote-tree-renumber-recursive)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "k")   #'denote-tree-retag-sequence)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "z")   #'denote-tree-hierarchy-toggle-fold-sequence)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "h")   #'denote-tree-fix-sequence-frontmatter)
-    (define-key denote-sequence-hierarchy-mode-map (kbd "C-l") #'denote-tree-fix-all-sequence-frontmatter)))
+(add-hook 'savehist-mode-hook #'denote-tree--register-savehist-variables)
+(when (boundp 'savehist-additional-variables)
+  (denote-tree--register-savehist-variables))
+
+(keymap-set denote-sequence-hierarchy-mode-map "s" #'denote-tree-new-sibling)
+(keymap-set denote-sequence-hierarchy-mode-map "c" #'denote-tree-new-child)
+(keymap-set denote-sequence-hierarchy-mode-map "p" #'denote-tree-new-parent)
+(keymap-set denote-sequence-hierarchy-mode-map "r" #'denote-tree-repack-children)
+(keymap-set denote-sequence-hierarchy-mode-map "C-r" #'denote-tree-repack-children)
+(keymap-set denote-sequence-hierarchy-mode-map "M-r" #'denote-tree-swap-with-parent)
+(keymap-set denote-sequence-hierarchy-mode-map "M-p" #'denote-tree-swap-with-previous)
+(keymap-set denote-sequence-hierarchy-mode-map "M-n" #'denote-tree-swap-with-next)
+(keymap-set denote-sequence-hierarchy-mode-map "m" #'denote-tree-reparent)
+(keymap-set denote-sequence-hierarchy-mode-map "u" #'denote-tree-renumber-recursive)
+(keymap-set denote-sequence-hierarchy-mode-map "k" #'denote-tree-retag-sequence)
+(keymap-set denote-sequence-hierarchy-mode-map "z" #'denote-tree-hierarchy-toggle-fold-sequence)
+(keymap-set denote-sequence-hierarchy-mode-map "h" #'denote-tree-fix-sequence-frontmatter)
+(keymap-set denote-sequence-hierarchy-mode-map "C-l" #'denote-tree-fix-all-sequence-frontmatter)
 
 (provide 'denote-tree)
 ;;; denote-tree.el ends here
