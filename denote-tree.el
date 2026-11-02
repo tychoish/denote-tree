@@ -604,7 +604,6 @@ Intended for `flycheck-mode-hook'; does nothing once registered."
       :predicate (lambda () (and buffer-file-name (denote-file-has-identifier-p buffer-file-name))))
     (add-to-list 'flycheck-checkers 'denote-tree-sequence t)))
 
-(add-hook 'flycheck-mode-hook #'denote-tree-setup-flycheck)
 
 ;;; Sequence repack
 
@@ -1425,24 +1424,95 @@ Like `denote-sequence-new-parent'."
   "Add denote-tree's persisted variables to `savehist-additional-variables'."
   (add-to-list 'savehist-additional-variables 'denote-tree-hierarchy-fold-sequences))
 
-(add-hook 'savehist-mode-hook #'denote-tree--register-savehist-variables)
-(when (boundp 'savehist-additional-variables)
-  (denote-tree--register-savehist-variables))
+(defvar denote-tree-mode--managed-settings nil
+  "Alist of (SYMBOL . VALUE) settings managed globally by `denote-tree-mode'.")
 
-(keymap-set denote-sequence-hierarchy-mode-map "s" #'denote-tree-new-sibling)
-(keymap-set denote-sequence-hierarchy-mode-map "c" #'denote-tree-new-child)
-(keymap-set denote-sequence-hierarchy-mode-map "p" #'denote-tree-new-parent)
-(keymap-set denote-sequence-hierarchy-mode-map "r" #'denote-tree-repack-children)
-(keymap-set denote-sequence-hierarchy-mode-map "C-r" #'denote-tree-repack-children)
-(keymap-set denote-sequence-hierarchy-mode-map "M-r" #'denote-tree-swap-with-parent)
-(keymap-set denote-sequence-hierarchy-mode-map "M-p" #'denote-tree-swap-with-previous)
-(keymap-set denote-sequence-hierarchy-mode-map "M-n" #'denote-tree-swap-with-next)
-(keymap-set denote-sequence-hierarchy-mode-map "m" #'denote-tree-reparent)
-(keymap-set denote-sequence-hierarchy-mode-map "u" #'denote-tree-renumber-recursive)
-(keymap-set denote-sequence-hierarchy-mode-map "k" #'denote-tree-retag-sequence)
-(keymap-set denote-sequence-hierarchy-mode-map "z" #'denote-tree-hierarchy-toggle-fold-sequence)
-(keymap-set denote-sequence-hierarchy-mode-map "h" #'denote-tree-fix-sequence-frontmatter)
-(keymap-set denote-sequence-hierarchy-mode-map "C-l" #'denote-tree-fix-all-sequence-frontmatter)
+(defvar denote-tree-mode--saved-settings nil
+  "Alist of (SYMBOL . (BOUNDP . VALUE)) saved before enabling `denote-tree-mode'.")
+
+(defun denote-tree-mode--apply-settings ()
+  "Save previous values and apply `denote-tree-mode--managed-settings'."
+  (setq denote-tree-mode--saved-settings nil)
+  (dolist (pair denote-tree-mode--managed-settings)
+    (let ((sym (car pair))
+          (val (cdr pair)))
+      (push (cons sym (if (boundp sym) (cons t (symbol-value sym)) (cons nil nil)))
+            denote-tree-mode--saved-settings)
+      (set sym val))))
+
+(defun denote-tree-mode--revert-settings ()
+  "Restore variables to their state prior to `denote-tree-mode'."
+  (dolist (entry denote-tree-mode--saved-settings)
+    (let ((sym (car entry))
+          (status (cdr entry)))
+      (if (car status)
+          (set sym (cdr status))
+        (makunbound sym))))
+  (setq denote-tree-mode--saved-settings nil))
+
+(defconst denote-tree--hierarchy-bindings
+  '(("s" . denote-tree-new-sibling)
+    ("c" . denote-tree-new-child)
+    ("p" . denote-tree-new-parent)
+    ("r" . denote-tree-repack-children)
+    ("C-r" . denote-tree-repack-children)
+    ("M-r" . denote-tree-swap-with-parent)
+    ("M-p" . denote-tree-swap-with-previous)
+    ("M-n" . denote-tree-swap-with-next)
+    ("m" . denote-tree-reparent)
+    ("u" . denote-tree-renumber-recursive)
+    ("k" . denote-tree-retag-sequence)
+    ("z" . denote-tree-hierarchy-toggle-fold-sequence)
+    ("h" . denote-tree-fix-sequence-frontmatter)
+    ("C-l" . denote-tree-fix-all-sequence-frontmatter))
+  "Keybindings applied to `denote-sequence-hierarchy-mode-map' by `denote-tree-mode'.")
+
+(defun denote-tree--enable-hierarchy-keys ()
+  "Bind denote-tree commands in `denote-sequence-hierarchy-mode-map'."
+  (when (boundp 'denote-sequence-hierarchy-mode-map)
+    (pcase-dolist (`(,key . ,cmd) denote-tree--hierarchy-bindings)
+      (keymap-set denote-sequence-hierarchy-mode-map key cmd))))
+
+(defun denote-tree--disable-hierarchy-keys ()
+  "Unbind denote-tree commands from `denote-sequence-hierarchy-mode-map'."
+  (when (boundp 'denote-sequence-hierarchy-mode-map)
+    (pcase-dolist (`(,key . ,cmd) denote-tree--hierarchy-bindings)
+      (when (eq (keymap-lookup denote-sequence-hierarchy-mode-map key) cmd)
+        (keymap-unset denote-sequence-hierarchy-mode-map key t)))))
+
+(defvar denote-tree-mode-map
+  (let ((map (make-sparse-keymap)))
+    map)
+  "Keymap used by `denote-tree-mode'.")
+
+;;;###autoload
+(define-minor-mode denote-tree-mode
+  "Global minor mode for Denote tree sequence navigation, hierarchy, and linting."
+  :global t
+  :group 'denote-tree
+  :keymap denote-tree-mode-map
+  (if denote-tree-mode
+      (progn
+        (denote-tree-mode--apply-settings)
+        (denote-tree--enable-hierarchy-keys)
+        (add-hook 'denote-sequence-hierarchy-mode-hook #'denote-tree--enable-hierarchy-keys)
+        (with-eval-after-load 'denote-sequence
+          (when denote-tree-mode
+            (denote-tree--enable-hierarchy-keys)))
+        (add-hook 'flycheck-mode-hook #'denote-tree-setup-flycheck)
+        (when (bound-and-true-p flycheck-mode)
+          (denote-tree-setup-flycheck))
+        (add-hook 'savehist-mode-hook #'denote-tree--register-savehist-variables)
+        (when (boundp 'savehist-additional-variables)
+          (denote-tree--register-savehist-variables)))
+    (denote-tree-mode--revert-settings)
+    (remove-hook 'denote-sequence-hierarchy-mode-hook #'denote-tree--enable-hierarchy-keys)
+    (denote-tree--disable-hierarchy-keys)
+    (remove-hook 'flycheck-mode-hook #'denote-tree-setup-flycheck)
+    (remove-hook 'savehist-mode-hook #'denote-tree--register-savehist-variables)
+    (when (boundp 'savehist-additional-variables)
+      (setq savehist-additional-variables
+            (delq 'denote-tree-hierarchy-fold-sequences savehist-additional-variables)))))
 
 (provide 'denote-tree)
 ;;; denote-tree.el ends here

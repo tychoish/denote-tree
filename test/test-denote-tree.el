@@ -1474,11 +1474,15 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
 (ert-deftest denote-tree-test/hierarchy-fold-sequences-persisted-via-savehist ()
   "The fold-sequences variable is registered for `savehist-mode' persistence."
   (require 'savehist)
-  (should (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
-  (let ((savehist-additional-variables nil))
-    (denote-tree--register-savehist-variables)
-    (should (memq 'denote-tree-hierarchy-fold-sequences
-                  savehist-additional-variables))))
+  (unwind-protect
+      (progn
+        (denote-tree-mode 1)
+        (should (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
+        (let ((savehist-additional-variables nil))
+          (denote-tree--register-savehist-variables)
+          (should (memq 'denote-tree-hierarchy-fold-sequences
+                        savehist-additional-variables))))
+    (denote-tree-mode -1)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; denote-tree--hierarchy-remap-fold-sequence-prefix / --swap-fold-sequence*
@@ -1707,3 +1711,25 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
 
 (provide 'test-denote-tree)
 ;;; test-denote-tree.el ends here
+
+(ert-deftest denote-tree-test/mode-lifecycle ()
+  "Enabling `denote-tree-mode' sets up hooks and keymaps; disabling cleans them up."
+  (let ((denote-tree-mode nil))
+    (unwind-protect
+        (progn
+          (denote-tree-mode 1)
+          (should (memq #'denote-tree-setup-flycheck flycheck-mode-hook))
+          (should (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
+          (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "s") #'denote-tree-new-sibling))
+          (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "c") #'denote-tree-new-child))
+          (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "p") #'denote-tree-new-parent))
+          (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "r") #'denote-tree-repack-children))
+          (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "z") #'denote-tree-hierarchy-toggle-fold-sequence))
+          (denote-tree-mode -1)
+          (should-not (memq #'denote-tree-setup-flycheck flycheck-mode-hook))
+          (should-not (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
+          (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "s"))
+          (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "c"))
+          (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "p"))
+          (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "z")))
+      (denote-tree-mode -1))))
