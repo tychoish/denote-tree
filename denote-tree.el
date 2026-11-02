@@ -1425,10 +1425,12 @@ Like `denote-sequence-new-parent'."
   (add-to-list 'savehist-additional-variables 'denote-tree-hierarchy-fold-sequences))
 
 (defvar denote-tree-mode--managed-settings nil
-  "Alist of (SYMBOL . VALUE) settings managed globally by `denote-tree-mode'.")
+  "Alist of (SYMBOL . VALUE) settings managed globally.
+Used by `denote-tree-mode'.")
 
 (defvar denote-tree-mode--saved-settings nil
-  "Alist of (SYMBOL . (BOUNDP . VALUE)) saved before enabling `denote-tree-mode'.")
+  "Alist of (SYMBOL . (BOUNDP . VALUE)) saved before enabling mode.
+Restored when `denote-tree-mode' is disabled.")
 
 (defun denote-tree-mode--apply-settings ()
   "Save previous values and apply `denote-tree-mode--managed-settings'."
@@ -1465,7 +1467,8 @@ Like `denote-sequence-new-parent'."
     ("z" . denote-tree-hierarchy-toggle-fold-sequence)
     ("h" . denote-tree-fix-sequence-frontmatter)
     ("C-l" . denote-tree-fix-all-sequence-frontmatter))
-  "Keybindings applied to `denote-sequence-hierarchy-mode-map' by `denote-tree-mode'.")
+  "Keybindings applied to hierarchy mode map.
+Used by `denote-tree-mode' on `denote-sequence-hierarchy-mode-map'.")
 
 (defun denote-tree--enable-hierarchy-keys ()
   "Bind denote-tree commands in `denote-sequence-hierarchy-mode-map'."
@@ -1487,7 +1490,7 @@ Like `denote-sequence-new-parent'."
 
 ;;;###autoload
 (define-minor-mode denote-tree-mode
-  "Global minor mode for Denote tree sequence navigation, hierarchy, and linting."
+  "Global minor mode for Denote tree sequence navigation and hierarchy."
   :global t
   :group 'denote-tree
   :keymap denote-tree-mode-map
