@@ -1499,9 +1499,6 @@ Used by `denote-tree-mode' on `denote-sequence-hierarchy-mode-map'.")
         (denote-tree-mode--apply-settings)
         (denote-tree--enable-hierarchy-keys)
         (add-hook 'denote-sequence-hierarchy-mode-hook #'denote-tree--enable-hierarchy-keys)
-        (with-eval-after-load 'denote-sequence
-          (when denote-tree-mode
-            (denote-tree--enable-hierarchy-keys)))
         (add-hook 'flycheck-mode-hook #'denote-tree-setup-flycheck)
         (when (bound-and-true-p flycheck-mode)
           (denote-tree-setup-flycheck))
