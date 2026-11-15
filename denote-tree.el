@@ -316,7 +316,7 @@ Inspects context in the following order:
   (if-let* ((title (denote-retrieve-title-or-filename file (denote-filetype-heuristics file)))
             (sig (denote-retrieve-filename-signature file))
             ((not (string-empty-p sig))))
-      (format "[D:%s] %s" sig title)
+      (format "[d:%s] %s" sig title)
     title))
 
 (defun denote-tree--note-annotation (file)

@@ -1709,6 +1709,17 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
       (ignore-errors (denote-tree-test--kill-dir-buffers dir))
       (ignore-errors (delete-directory dir t)))))
 
+(ert-deftest denote-tree-test/note-label-prefix ()
+  "Note label in completion formats sequence as `[d:SEQ] TITLE` with lowercase d."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let ((seq-file (denote-tree-test--make-org-note dir "20240101T100000" "1a" "Seq Note"))
+              (plain-file (denote-tree-test--make-org-note dir "20240101T110000" nil "Plain Note")))
+          (should (equal (denote-tree--note-label seq-file) "[d:1a] Seq Note"))
+          (should (equal (denote-tree--note-label plain-file) "Plain Note")))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
 (provide 'test-denote-tree)
 ;;; test-denote-tree.el ends here
 
