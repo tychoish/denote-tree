@@ -3,7 +3,7 @@
 ;; Author: sam kleinman <sam@tychoish.com>
 ;; Maintainer: sam kleinman <sam@tychoish.com>
 ;; Version: 0.1.0
-;; Package-Requires: ((emacs "29.1") (denote "3.0.0") (denote-sequence "0.3.0") (annotated-completing-read "0.1.0"))
+;; Package-Requires: ((emacs "29.1") (denote "3.0.0") (denote-sequence "0.3.0") (annotated-completing-read "0.1.0") (hitl "0.1.0"))
 ;; Keywords: docs, denote, convenience, tools
 ;; URL: https://github.com/tychoish/denote-tree
 

@@ -27,17 +27,17 @@ jobs:
       - name: Lint Source Code
         uses: tychoish/elisp-ci/lint@main
         with:
-          dependencies: "denote denote-sequence annotated-completing-read"
+          dependencies: "denote denote-sequence annotated-completing-read hitl"
 
       - name: Run ERT Tests
         uses: tychoish/elisp-ci@main
         with:
-          dependencies: "denote denote-sequence annotated-completing-read"
+          dependencies: "denote denote-sequence annotated-completing-read hitl"
 
       - name: Measure Code Coverage
         uses: tychoish/elisp-ci/coverage@main
         with:
-          dependencies: "denote denote-sequence annotated-completing-read"
+          dependencies: "denote denote-sequence annotated-completing-read hitl"
           report-format: "lcov"
           output-file: "coverage/lcov.info"
 
