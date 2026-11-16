@@ -18,7 +18,7 @@
 ;; Every step is idempotent and each subtree is renamed descendants-first with
 ;; the root last, so an interrupted step is recomputed from whatever remains
 ;; under the old prefix.  The plan is saved after every step, so a swap that
-;; is interrupted (or paused by `hitl-plan-execute-one') resumes with
+;; is interrupted (or paused after one step) resumes with
 ;; `hitl-plan-resume'.  Targets are Denote identifiers, which survive the
 ;; renames, rather than file names.
 
@@ -35,6 +35,7 @@
 (declare-function denote-tree--apply-reseq-plan "denote-tree")
 (declare-function denote-tree--hierarchy-remap-fold-sequence-many "denote-tree")
 (declare-function denote-tree-target-file "denote-tree")
+(declare-function hitl-plan-execute-one "hitl-plan" (plan))
 (defvar denote-tree-after-reseq-functions)
 
 (defun denote-tree-swap--file-for-id (id)
@@ -90,6 +91,20 @@ an interruption finishes only the remaining renames."
   "Return a swap target plist moving FILE (at SEQ) to sequence TO."
   (list :id (denote-retrieve-filename-identifier file) :from seq :seq to))
 
+(defun denote-tree-swap--execute-one (plan)
+  "Execute the first step of a newly created swap PLAN and pause it."
+  (if (fboundp 'hitl-plan-execute-one)
+      (hitl-plan-execute-one plan)
+    ;; Older hitl releases provide the step runner but not execute-one.
+    (let ((step (car (hitl-plan-steps plan)))
+          (inhibit-quit t))
+      (setf (hitl-plan-status plan) 'paused)
+      (hitl-plan-save plan)
+      (hitl-plan-run-step plan step (hitl-plan-step-op step))
+      (when quit-flag (setq quit-flag nil))
+      (hitl-plan--run-after-apply plan nil)
+      (hitl-plan-save plan))))
+
 ;;;###autoload
 (defun denote-tree-swap-create-plan (file-a file-b)
   "Return a saved, unexecuted swap plan exchanging FILE-A and FILE-B subtrees.
@@ -118,15 +133,14 @@ note, or one is an ancestor of the other.  See `denote-tree-swap'."
   "Swap the subtrees rooted at FILE-A and FILE-B, resumably.
 The swap runs as a `hitl-plan', so an interruption leaves it paused and
 saved; continue with `hitl-plan-resume'.  With prefix argument STEP, run
-only the first step and stop, to be cranked on by hand with
-`hitl-plan-execute-one'."
+only the first step and stop, ready to resume with `hitl-plan-resume'."
   (interactive
    (list (denote-tree-target-file "Swap note: " t)
          (denote-tree-target-file "With note: " t)
          current-prefix-arg))
   (let ((plan (denote-tree-swap-create-plan file-a file-b)))
     (if step
-        (hitl-plan-execute-one plan)
+        (denote-tree-swap--execute-one plan)
       (hitl-plan-execute plan))
     plan))
 

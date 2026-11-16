@@ -73,12 +73,18 @@ Binds `dir' and `hitl-plan-directory'."
   (denote-tree-swap-test--with-notes
       (("20240101T100000" "1" "A") ("20240101T100100" "1a" "A kid")
        ("20240101T100200" "2" "B"))
-    (let* ((plan (denote-tree-swap
+    (let* ((applied nil)
+           (hitl-plan-after-apply-functions
+            (list (lambda (_file steps _plan) (setq applied steps))))
+           (plan (denote-tree-swap
                   (denote-tree-swap-test--file dir "20240101T100000")
                   (denote-tree-swap-test--file dir "20240101T100200")
                   t)))
       (should (eq (hitl-plan-status plan) 'paused))
+      (should (= 1 (length applied)))
       (should (equal "3" (denote-tree-swap-test--sig dir "20240101T100000")))
+      (setq plan (hitl-plan-load (hitl-plan-id plan)))
+      (should (eq (hitl-plan-status plan) 'paused))
       (hitl-plan-execute plan)
       (should (eq (hitl-plan-status plan) 'complete))
       (should (equal "2" (denote-tree-swap-test--sig dir "20240101T100000")))
