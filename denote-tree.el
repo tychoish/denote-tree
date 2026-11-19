@@ -1425,20 +1425,25 @@ Like `denote-sequence-new-parent'."
   "Add denote-tree's persisted variables to `savehist-additional-variables'."
   (add-to-list 'savehist-additional-variables 'denote-tree-hierarchy-fold-sequences))
 
-(defvar denote-tree-mode--managed-settings
+(defcustom denote-tree-mode-managed-settings
   '((display-buffer-alist . ("\\`\\*denote-sequence-hierarchy"
                              (display-buffer-reuse-window display-buffer-pop-up-window))))
-  "Alist of (SYMBOL . VALUE) settings managed globally.
-Used by `denote-tree-mode'.")
+  "Alist of (SYMBOL . VALUE) settings managed globally by `denote-tree-mode'.
+For list variables like `display-buffer-alist', entries are added via
+`add-to-list' on mode activation and removed on deactivation."
+  :type '(alist :key-type symbol :value-type sexp)
+  :group 'denote-tree)
+
+(defvaralias 'denote-tree-mode--managed-settings 'denote-tree-mode-managed-settings)
 
 (defvar denote-tree-mode--saved-settings nil
   "Settings state saved before enabling `denote-tree-mode'.
 Restored when `denote-tree-mode' is disabled.")
 
 (defun denote-tree-mode--apply-settings ()
-  "Save previous values and apply `denote-tree-mode--managed-settings'."
+  "Save previous values and apply `denote-tree-mode-managed-settings'."
   (unless denote-tree-mode--saved-settings
-    (dolist (pair denote-tree-mode--managed-settings)
+    (dolist (pair denote-tree-mode-managed-settings)
       (let ((sym (car pair))
             (val (cdr pair)))
         (if (eq sym 'display-buffer-alist)
