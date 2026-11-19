@@ -1427,7 +1427,8 @@ Like `denote-sequence-new-parent'."
 
 (defcustom denote-tree-mode-managed-settings
   '((display-buffer-alist . ("\\`\\*denote-sequence-hierarchy"
-                             (display-buffer-reuse-window display-buffer-pop-up-window))))
+                             (display-buffer-reuse-window display-buffer-pop-up-window)))
+    (denote-sequence-scheme . alphanumeric))
   "Alist of (SYMBOL . VALUE) settings managed globally by `denote-tree-mode'.
 For list variables like `display-buffer-alist', entries are added via
 `add-to-list' on mode activation and removed on deactivation."

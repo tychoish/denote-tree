@@ -1756,14 +1756,19 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
   (let ((denote-tree-mode nil)
         (target '("\\`\\*denote-sequence-hierarchy"
                   (display-buffer-reuse-window display-buffer-pop-up-window)))
-        (orig-display (copy-sequence display-buffer-alist)))
+        (orig-display (copy-sequence display-buffer-alist))
+        (orig-scheme (when (boundp 'denote-sequence-scheme) denote-sequence-scheme)))
     (unwind-protect
         (progn
+          (setq denote-sequence-scheme 'numeric)
           (setq display-buffer-alist (delete target (copy-sequence display-buffer-alist)))
           (should-not (member target display-buffer-alist))
           (denote-tree-mode 1)
           (should (member target display-buffer-alist))
+          (should (eq denote-sequence-scheme 'alphanumeric))
           (denote-tree-mode -1)
-          (should-not (member target display-buffer-alist)))
+          (should-not (member target display-buffer-alist))
+          (should (eq denote-sequence-scheme 'numeric)))
       (denote-tree-mode -1)
-      (setq display-buffer-alist orig-display))))
+      (setq display-buffer-alist orig-display)
+      (setq denote-sequence-scheme orig-scheme))))
