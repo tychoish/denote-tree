@@ -1434,8 +1434,6 @@ For list variables like `display-buffer-alist', entries are added via
   :type '(alist :key-type symbol :value-type sexp)
   :group 'denote-tree)
 
-(defvaralias 'denote-tree-mode--managed-settings 'denote-tree-mode-managed-settings)
-
 (defvar denote-tree-mode--saved-settings nil
   "Settings state saved before enabling `denote-tree-mode'.
 Restored when `denote-tree-mode' is disabled.")
