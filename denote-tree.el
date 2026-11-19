@@ -34,6 +34,7 @@
 
 (defvar flycheck-checkers)
 (defvar savehist-additional-variables)
+(defvar display-buffer-alist)
 (defvar denote-file-types)
 (defvar denote-sequence-hierarchy-mode-map)
 (autoload 'annotated-completing-read-table "annotated-completing-read")
@@ -1424,32 +1425,46 @@ Like `denote-sequence-new-parent'."
   "Add denote-tree's persisted variables to `savehist-additional-variables'."
   (add-to-list 'savehist-additional-variables 'denote-tree-hierarchy-fold-sequences))
 
-(defvar denote-tree-mode--managed-settings nil
+(defvar denote-tree-mode--managed-settings
+  '((display-buffer-alist . ("\\`\\*denote-sequence-hierarchy"
+                             (display-buffer-reuse-window display-buffer-pop-up-window))))
   "Alist of (SYMBOL . VALUE) settings managed globally.
 Used by `denote-tree-mode'.")
 
 (defvar denote-tree-mode--saved-settings nil
-  "Alist of (SYMBOL . (BOUNDP . VALUE)) saved before enabling mode.
+  "Settings state saved before enabling `denote-tree-mode'.
 Restored when `denote-tree-mode' is disabled.")
 
 (defun denote-tree-mode--apply-settings ()
   "Save previous values and apply `denote-tree-mode--managed-settings'."
-  (setq denote-tree-mode--saved-settings nil)
-  (dolist (pair denote-tree-mode--managed-settings)
-    (let ((sym (car pair))
-          (val (cdr pair)))
-      (push (cons sym (if (boundp sym) (cons t (symbol-value sym)) (cons nil nil)))
-            denote-tree-mode--saved-settings)
-      (set sym val))))
+  (unless denote-tree-mode--saved-settings
+    (dolist (pair denote-tree-mode--managed-settings)
+      (let ((sym (car pair))
+            (val (cdr pair)))
+        (if (eq sym 'display-buffer-alist)
+            (let ((already-present (and (boundp sym) (member val (symbol-value sym)))))
+              (push (list sym :list already-present val)
+                    denote-tree-mode--saved-settings)
+              (add-to-list sym val))
+          (push (list sym :scalar (if (boundp sym) (cons t (symbol-value sym)) (cons nil nil)))
+                denote-tree-mode--saved-settings)
+          (set sym val))))))
 
 (defun denote-tree-mode--revert-settings ()
   "Restore variables to their state prior to `denote-tree-mode'."
   (dolist (entry denote-tree-mode--saved-settings)
-    (let ((sym (car entry))
-          (status (cdr entry)))
-      (if (car status)
-          (set sym (cdr status))
-        (makunbound sym))))
+    (let ((sym (nth 0 entry))
+          (kind (nth 1 entry)))
+      (if (eq kind :list)
+          (let ((already-present (nth 2 entry))
+                (val (nth 3 entry)))
+            (unless already-present
+              (when (boundp sym)
+                (set sym (delete val (symbol-value sym))))))
+        (let ((status (nth 2 entry)))
+          (if (car status)
+              (set sym (cdr status))
+            (makunbound sym))))))
   (setq denote-tree-mode--saved-settings nil))
 
 (defconst denote-tree--hierarchy-bindings

@@ -1731,6 +1731,9 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
           (denote-tree-mode 1)
           (should (memq #'denote-tree-setup-flycheck flycheck-mode-hook))
           (should (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
+          (should (member '("\\`\\*denote-sequence-hierarchy"
+                            (display-buffer-reuse-window display-buffer-pop-up-window))
+                          display-buffer-alist))
           (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "s") #'denote-tree-new-sibling))
           (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "c") #'denote-tree-new-child))
           (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "p") #'denote-tree-new-parent))
@@ -1739,8 +1742,28 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
           (denote-tree-mode -1)
           (should-not (memq #'denote-tree-setup-flycheck flycheck-mode-hook))
           (should-not (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
+          (should-not (member '("\\`\\*denote-sequence-hierarchy"
+                                (display-buffer-reuse-window display-buffer-pop-up-window))
+                              display-buffer-alist))
           (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "s"))
           (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "c"))
           (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "p"))
           (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "z")))
       (denote-tree-mode -1))))
+
+(ert-deftest denote-tree-test/mode-managed-settings ()
+  "Enabling `denote-tree-mode' applies managed settings; disabling reverts them."
+  (let ((denote-tree-mode nil)
+        (target '("\\`\\*denote-sequence-hierarchy"
+                  (display-buffer-reuse-window display-buffer-pop-up-window)))
+        (orig-display (copy-sequence display-buffer-alist)))
+    (unwind-protect
+        (progn
+          (setq display-buffer-alist (delete target (copy-sequence display-buffer-alist)))
+          (should-not (member target display-buffer-alist))
+          (denote-tree-mode 1)
+          (should (member target display-buffer-alist))
+          (denote-tree-mode -1)
+          (should-not (member target display-buffer-alist)))
+      (denote-tree-mode -1)
+      (setq display-buffer-alist orig-display))))
