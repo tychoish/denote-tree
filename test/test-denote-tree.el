@@ -1772,3 +1772,8 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
       (denote-tree-mode -1)
       (setq display-buffer-alist orig-display)
       (setq denote-sequence-scheme orig-scheme))))
+
+
+(ert-deftest denote-tree-test/hierarchy-bindings-keep-isearch-backward ()
+  "`C-r' must stay `isearch-backward' in hierarchy buffers."
+  (should-not (assoc "C-r" denote-tree--hierarchy-bindings)))
