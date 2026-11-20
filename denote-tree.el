@@ -1577,7 +1577,7 @@ Restored when `denote-tree-mode' is disabled.")
     ("k" . denote-tree-retag-sequence)
     ("z" . denote-tree-hierarchy-toggle-fold-sequence)
     ("h" . denote-tree-fix-sequence-frontmatter)
-    ("C-l" . denote-tree-fix-all-sequence-frontmatter))
+    ("y" . denote-tree-fix-all-sequence-frontmatter))
   "Keybindings applied to hierarchy mode map.
 Used by `denote-tree-mode' on `denote-sequence-hierarchy-mode-map'.")
 

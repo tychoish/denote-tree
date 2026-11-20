@@ -1825,3 +1825,9 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
 (ert-deftest denote-tree-test/hierarchy-bindings-keep-isearch-backward ()
   "`C-r' must stay `isearch-backward' in hierarchy buffers."
   (should-not (assoc "C-r" denote-tree--hierarchy-bindings)))
+
+(ert-deftest denote-tree-test/hierarchy-bindings-keep-recenter ()
+  "`C-l' must stay `recenter-top-bottom' in hierarchy buffers."
+  (should-not (assoc "C-l" denote-tree--hierarchy-bindings))
+  (should (equal 'denote-tree-fix-all-sequence-frontmatter
+                 (cdr (assoc "y" denote-tree--hierarchy-bindings)))))

@@ -81,7 +81,7 @@ enabling tree refactoring directly from visited note buffers, Dired, and
 |---------------------------------------------+------------------+--------------------------------------------------------|
 | =denote-tree-lint-sequences=                |                  | Display sequence signature mismatches buffer           |
 | =denote-tree-fix-sequence-frontmatter=      | ~h~              | Update frontmatter signature to match filename         |
-| =denote-tree-fix-all-sequence-frontmatter=  | ~C-l~            | Fix frontmatter across all mismatched notes            |
+| =denote-tree-fix-all-sequence-frontmatter=  | ~y~              | Fix frontmatter across all mismatched notes            |
 | =denote-tree-repack-children=               | ~r~             | Compact numbering gaps among children of sequence      |
 | =denote-tree-create-nest=                   |                  | Create a note and move marked notes (with descendants) under it |
 | =denote-tree-swap-with-parent=              | ~M-r~            | Swap sequence note position with its parent            |
