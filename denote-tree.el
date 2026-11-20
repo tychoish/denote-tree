@@ -39,6 +39,7 @@
 (defvar denote-sequence-hierarchy-mode-map)
 (autoload 'annotated-completing-read-table "annotated-completing-read")
 
+(declare-function dired-get-marked-files "dired")
 (declare-function flymake-make-diagnostic "flymake")
 (declare-function flycheck-define-generic-checker "flycheck")
 (declare-function flycheck-error-new-at "flycheck")
@@ -1203,6 +1204,98 @@ without a prompt when it does not."
   (unless (denote-retrieve-filename-signature current-file)
     (user-error "File has no sequence: %s" (file-name-nondirectory current-file)))
   (denote-tree--execute-reseq current-file new-seq "Renumber"))
+
+;;; Nesting
+
+(defun denote-tree--nest-roots (files)
+  "Return FILES without any file that descends from another file in FILES.
+Moving an ancestor already carries its descendants, so listing both would
+rename the descendant twice."
+  (let ((seqs (seq-keep #'denote-retrieve-filename-signature files)))
+    (seq-remove
+     (lambda (file)
+       (when-let* ((seq (denote-retrieve-filename-signature file)))
+         (seq-some (lambda (other)
+                     (and (not (equal other seq))
+                          (denote-tree--sequence-descendant-p other seq)))
+                   seqs)))
+     (delete-dups (copy-sequence files)))))
+
+(defun denote-tree--nest-move-roots (roots nest-seq)
+  "Move each of ROOTS, with descendants, to be the next child of NEST-SEQ.
+Each root is renamed before the next child sequence is computed from disk,
+so successive roots get successive children.  Return (PLAN . SEQ-PAIRS):
+the combined (FILE . NEW-SEQ) pairs applied, and the matching
+\(OLD-SEQ . NEW-SEQ) pairs.  Roots without a sequence move alone."
+  (let ((plan nil)
+        (seq-pairs nil))
+    (seq-do
+     (lambda (file)
+       (let* ((new-seq (denote-sequence--get-new-child nest-seq))
+              (root-plan (if (denote-retrieve-filename-signature file)
+                             (denote-tree--recursive-reseq-plan file new-seq)
+                           (list (cons file new-seq)))))
+         (setq seq-pairs
+               (append seq-pairs
+                       (seq-map (lambda (pair)
+                                  (cons (denote-retrieve-filename-signature (car pair))
+                                        (cdr pair)))
+                                root-plan)))
+         (denote-tree--apply-reseq-plan root-plan)
+         (setq plan (append plan root-plan))))
+     roots)
+    (cons plan seq-pairs)))
+
+;;;###autoload
+(defun denote-tree-create-nest (files title &optional parent-file)
+  "Create a new note titled TITLE and move FILES under it as children.
+FILES are Denote files, such as the marked rows of a dash or hierarchy
+buffer; their descendants move with them, and any file already below
+another file in FILES is not moved twice.  The new note is a top-level
+sequence, or the next child of PARENT-FILE when given.  Return the new
+note's path.
+
+Applies the whole move after one confirmation; declining leaves every file
+untouched.  Runs `denote-tree-after-reseq-functions' with the plan."
+  (interactive
+   (let ((files (denote-tree-marked-files)))
+     (list files (read-string (format "Nest title (%d note%s): " (length files)
+                                      (if (= (length files) 1) "" "s"))))))
+  (unless files
+    (user-error "No notes to nest; mark some first"))
+  (when (string-blank-p title)
+    (user-error "A nest needs a title"))
+  (let* ((denote-rename-confirmations nil)
+         (nest-seq (if parent-file
+                       (denote-sequence--get-new-child
+                        (or (denote-sequence-file-p parent-file)
+                            (user-error "Parent has no sequence: %s" parent-file)))
+                     (denote-sequence--get-new-parent)))
+         (roots (denote-tree--nest-roots files)))
+    (unless (y-or-n-p (format "Create `%s' as %s and move %d note%s under it? "
+                              title nest-seq (length roots)
+                              (if (= (length roots) 1) "" "s")))
+      (user-error "Nest cancelled; no files were changed"))
+    (let* ((nest-file (denote title nil nil nil nil nil nest-seq))
+           (result (denote-tree--nest-move-roots roots nest-seq)))
+      (denote-tree--hierarchy-remap-fold-sequence-many (cdr result))
+      (run-hook-with-args 'denote-tree-after-reseq-functions (car result))
+      nest-file)))
+
+(defvar denote-tree-marked-files-function nil
+  "Function returning the marked Denote files of the current buffer, or nil.
+Buffers that support marking, such as `denote-dash-mode', set this locally.")
+
+(defun denote-tree-marked-files ()
+  "Return the marked Denote files for the current buffer.
+Uses `denote-tree-marked-files-function', then Dired marks; falls back to
+the file at point, so the command always has something to act on."
+  (or (when denote-tree-marked-files-function
+        (funcall denote-tree-marked-files-function))
+      (when (derived-mode-p 'dired-mode)
+        (dired-get-marked-files))
+      (when-let* ((file (denote-tree-file-at-point)))
+        (list file))))
 
 ;;; Sequence insertion
 

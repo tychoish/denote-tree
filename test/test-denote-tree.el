@@ -1773,6 +1773,54 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
       (setq display-buffer-alist orig-display)
       (setq denote-sequence-scheme orig-scheme))))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; denote-tree-create-nest
+
+(ert-deftest denote-tree-test/create-nest-bundles-files-under-new-parent ()
+  "Marked notes move, with descendants, under a fresh top-level note."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((denote-sequence-scheme 'alphanumeric)
+               (denote-file-type 'org)
+               (a (denote-tree-test--make-org-note dir "20240101T100000" "1" "Alpha"))
+               (_a1 (denote-tree-test--make-org-note dir "20240101T100100" "1a" "Alpha child"))
+               (b (denote-tree-test--make-org-note dir "20240101T110000" "2" "Beta"))
+               (denote-directory (list dir))
+               (denote-rename-buffer-mode nil)
+               nest)
+          (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) t)))
+            (setq nest (denote-tree-create-nest (list a b) "Bundle")))
+          (denote-tree-test--kill-dir-buffers dir)
+          (should (string-match-p "==3--bundle" nest))
+          (should (directory-files dir nil "20240101T100000==3a--"))
+          (should (directory-files dir nil "20240101T100100==3a1--"))
+          (should (directory-files dir nil "20240101T110000==3b--")))
+      (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/create-nest-skips-descendants-of-marked ()
+  "A marked note below another marked note is not moved on its own."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((denote-sequence-scheme 'alphanumeric)
+               (a (denote-tree-test--make-org-note dir "20240101T100000" "1" "Alpha"))
+               (a1 (denote-tree-test--make-org-note dir "20240101T100100" "1a" "Alpha child"))
+               (denote-directory (list dir)))
+          (should (equal (list a) (denote-tree--nest-roots (list a1 a)))))
+      (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/create-nest-declined-changes-nothing ()
+  "Declining the confirmation leaves every file in place."
+  (let ((dir (make-temp-file "denote-tree-test-" t)))
+    (unwind-protect
+        (let* ((denote-sequence-scheme 'alphanumeric)
+               (a (denote-tree-test--make-org-note dir "20240101T100000" "1" "Alpha"))
+               (denote-directory (list dir)))
+          (cl-letf (((symbol-function 'y-or-n-p) (lambda (&rest _) nil)))
+            (should-error (denote-tree-create-nest (list a) "Bundle") :type 'user-error))
+          (should (file-exists-p a))
+          (should (= 1 (length (directory-files dir nil "\\.org\\'")))))
+      (ignore-errors (delete-directory dir t)))))
 
 (ert-deftest denote-tree-test/hierarchy-bindings-keep-isearch-backward ()
   "`C-r' must stay `isearch-backward' in hierarchy buffers."
