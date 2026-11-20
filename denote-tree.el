@@ -1297,6 +1297,62 @@ the file at point, so the command always has something to act on."
       (when-let* ((file (denote-tree-file-at-point)))
         (list file))))
 
+;;; Series creation
+
+(defcustom denote-tree-series-recipes
+  '(("default"
+     :children ("Design prompt" "Requirements" "Notes")))
+  "Recipes for `denote-tree-create-series', as (NAME . PLIST).
+PLIST keys: `:children' is a list of child note titles, created in order as
+empty notes; `:keywords' is a list of keywords for every note created.
+Add a recipe per kind of series, for example one that starts with a design
+prompt and a tracker."
+  :type '(alist :key-type string :value-type plist)
+  :group 'denote-tree)
+
+(declare-function denote-dash-open-series "denote-dash")
+
+(defun denote-tree--series-recipe (name)
+  "Return the recipe plist for NAME, or signal a `user-error'."
+  (if-let* ((recipe (assoc name denote-tree-series-recipes)))
+      (cdr recipe)
+    (user-error "No series recipe named `%s'" name)))
+
+;;;###autoload
+(defun denote-tree-create-series (title &optional recipe-name parent-file)
+  "Create a series titled TITLE, with the children of RECIPE-NAME beneath it.
+RECIPE-NAME is a key of `denote-tree-series-recipes', default \"default\".
+The series note is a new top-level sequence, or the next child of
+PARENT-FILE when given.  Children are empty notes, created in recipe order,
+each taking the next free child sequence from disk.  Afterwards the dash for
+the series opens when `denote-dash' is available.
+
+Interactively, prompt for the title; with a prefix argument also prompt for
+the recipe.  Return the series note's path."
+  (interactive
+   (list (read-string "Series title: ")
+         (when (and current-prefix-arg (cdr denote-tree-series-recipes))
+           (completing-read "Series recipe: " (seq-map #'car denote-tree-series-recipes) nil t))))
+  (when (string-blank-p title)
+    (user-error "A series needs a title"))
+  (let* ((recipe (denote-tree--series-recipe (or recipe-name "default")))
+         (keywords (plist-get recipe :keywords))
+         (series-seq (if parent-file
+                         (denote-sequence--get-new-child
+                          (or (denote-sequence-file-p parent-file)
+                              (user-error "Parent has no sequence: %s" parent-file)))
+                       (denote-sequence--get-new-parent)))
+         (series-file (denote title keywords nil nil nil nil series-seq)))
+    (seq-do (lambda (child-title)
+              (denote child-title keywords nil nil nil nil
+                      (denote-sequence--get-new-child series-seq)))
+            (plist-get recipe :children))
+    (if (fboundp 'denote-dash-open-series)
+        (denote-dash-open-series series-seq)
+      (message "Created series %s with %d children"
+               series-seq (length (plist-get recipe :children))))
+    series-file))
+
 ;;; Sequence insertion
 
 (defun denote-tree--increment-sequence (seq)

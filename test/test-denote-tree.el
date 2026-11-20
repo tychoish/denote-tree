@@ -1831,3 +1831,67 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
   (should-not (assoc "C-l" denote-tree--hierarchy-bindings))
   (should (equal 'denote-tree-fix-all-sequence-frontmatter
                  (cdr (assoc "y" denote-tree--hierarchy-bindings)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; denote-tree-create-series
+
+(defmacro denote-tree-test--with-series-dir (&rest body)
+  "Run BODY in a temp Denote directory with the alphanumeric scheme."
+  (declare (indent 0))
+  `(let ((dir (make-temp-file "denote-tree-test-" t)))
+     (unwind-protect
+         (let* ((denote-sequence-scheme 'alphanumeric)
+                (denote-directory (list dir))
+                (denote-file-type 'org)
+                (denote-save-buffers t)
+                (denote-kill-buffers t)
+                (denote-prompts nil))
+           (cl-letf (((symbol-function 'denote-dash-open-series) #'ignore))
+             ,@body))
+       (ignore-errors (denote-tree-test--kill-dir-buffers dir))
+       (ignore-errors (delete-directory dir t)))))
+
+(ert-deftest denote-tree-test/create-series-makes-parent-and-children ()
+  "The default recipe creates a top-level note and three ordered children."
+  (denote-tree-test--with-series-dir
+    (denote-tree-test--make-org-note dir "20240101T100000" "1" "Existing")
+    (let ((file (denote-tree-create-series "My Series")))
+      (should (string-match-p "==2--my-series" file))
+      (should (directory-files dir nil "==2a--design-prompt"))
+      (should (directory-files dir nil "==2b--requirements"))
+      (should (directory-files dir nil "==2c--notes")))))
+
+(ert-deftest denote-tree-test/create-series-custom-recipe-and-keywords ()
+  "A named recipe controls the children and keywords."
+  (denote-tree-test--with-series-dir
+    (let ((denote-tree-series-recipes
+           '(("tracker" :children ("Scope" "Tasks") :keywords ("agent")))))
+      (denote-tree-create-series "Work" "tracker")
+      (should (directory-files dir nil "==1--work__agent"))
+      (should (directory-files dir nil "==1a--scope__agent"))
+      (should (directory-files dir nil "==1b--tasks__agent"))
+      (should-not (directory-files dir nil "==1c")))))
+
+(ert-deftest denote-tree-test/create-series-under-parent ()
+  "With PARENT-FILE the series is the next child of it."
+  (denote-tree-test--with-series-dir
+    (let ((parent (denote-tree-test--make-org-note dir "20240101T100000" "1" "Parent")))
+      (denote-tree-create-series "Sub" nil parent)
+      (should (directory-files dir nil "==1a--sub"))
+      (should (directory-files dir nil "==1a1--design-prompt")))))
+
+(ert-deftest denote-tree-test/create-series-opens-dash ()
+  "The dash for the new series is opened when available."
+  (denote-tree-test--with-series-dir
+    (let (opened)
+      (cl-letf (((symbol-function 'denote-dash-open-series)
+                 (lambda (seq) (setq opened seq))))
+        (denote-tree-create-series "Dashed"))
+      (should (equal "1" opened)))))
+
+(ert-deftest denote-tree-test/create-series-rejects-bad-input ()
+  "A blank title or unknown recipe is a user error and creates nothing."
+  (denote-tree-test--with-series-dir
+    (should-error (denote-tree-create-series "  ") :type 'user-error)
+    (should-error (denote-tree-create-series "X" "nope") :type 'user-error)
+    (should-not (directory-files dir nil "\\.org\\'"))))
