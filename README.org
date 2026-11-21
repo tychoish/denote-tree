@@ -94,6 +94,9 @@ enabling tree refactoring directly from visited note buffers, Dired, and
 | =denote-tree-retag-sequence=                | ~k~              | Add, remove, or replace keywords across subtree        |
 | =denote-tree-hierarchy-toggle-fold-sequence=| ~z~              | Toggle persistent fold for sequence at point           |
 | =denote-tree-hierarchy-clear-fold-sequences=|                  | Clear all persisted sequence folds                     |
+| =denote-tree-hierarchy-narrow-to-subtree=   | ~C-x n s~        | Narrow to the node at point and descendants            |
+| =denote-tree-hierarchy-widen=               | ~C-x n w~        | Widen the hierarchy                                    |
+| =denote-tree-hierarchy-clone=               | ~C-c C-c~        | Clone the current view into a named buffer             |
 | =denote-tree-setup-flymake=                 |                  | Enable Flymake diagnostic backend in current buffer    |
 
 * Customization

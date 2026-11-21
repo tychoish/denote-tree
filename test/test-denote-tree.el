@@ -1731,8 +1731,8 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
           (denote-tree-mode 1)
           (should (memq #'denote-tree-setup-flycheck flycheck-mode-hook))
           (should (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
-          (should (member '("\\`\\*denote-sequence-hierarchy"
-                            (display-buffer-reuse-window display-buffer-pop-up-window))
+          (should (member '("\\`\\*denote-\\(?:sequence-hierarchy\\|hierarchy:\\)"
+                            (display-buffer-same-window))
                           display-buffer-alist))
           (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "s") #'denote-tree-new-sibling))
           (should (eq (keymap-lookup denote-sequence-hierarchy-mode-map "c") #'denote-tree-new-child))
@@ -1742,8 +1742,8 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
           (denote-tree-mode -1)
           (should-not (memq #'denote-tree-setup-flycheck flycheck-mode-hook))
           (should-not (memq #'denote-tree--register-savehist-variables savehist-mode-hook))
-          (should-not (member '("\\`\\*denote-sequence-hierarchy"
-                                (display-buffer-reuse-window display-buffer-pop-up-window))
+          (should-not (member '("\\`\\*denote-\\(?:sequence-hierarchy\\|hierarchy:\\)"
+                                (display-buffer-same-window))
                               display-buffer-alist))
           (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "s"))
           (should-not (keymap-lookup denote-sequence-hierarchy-mode-map "c"))
@@ -1754,8 +1754,8 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
 (ert-deftest denote-tree-test/mode-managed-settings ()
   "Enabling `denote-tree-mode' applies managed settings; disabling reverts them."
   (let ((denote-tree-mode nil)
-        (target '("\\`\\*denote-sequence-hierarchy"
-                  (display-buffer-reuse-window display-buffer-pop-up-window)))
+        (target '("\\`\\*denote-\\(?:sequence-hierarchy\\|hierarchy:\\)"
+                  (display-buffer-same-window)))
         (orig-display (copy-sequence display-buffer-alist))
         (orig-scheme (when (boundp 'denote-sequence-scheme) denote-sequence-scheme)))
     (unwind-protect
@@ -1895,3 +1895,107 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
     (should-error (denote-tree-create-series "  ") :type 'user-error)
     (should-error (denote-tree-create-series "X" "nope") :type 'user-error)
     (should-not (directory-files dir nil "\\.org\\'"))))
+
+(ert-deftest denote-tree-test/hierarchy-display-uses-selected-window ()
+  "Both supported hierarchy names display in the selected window."
+  (save-window-excursion
+    (let ((denote-tree-mode nil)
+          (window (selected-window)))
+      (unwind-protect
+          (progn
+            (denote-tree-mode 1)
+            (seq-do (lambda (name)
+                      (let ((buffer (generate-new-buffer name)))
+                        (unwind-protect
+                            (should (eq window (display-buffer buffer)))
+                          (kill-buffer buffer))))
+                    '("*denote-sequence-hierarchy test*"
+                      "*denote-hierarchy: test*")))
+        (denote-tree-mode -1)))))
+
+(ert-deftest denote-tree-test/hierarchy-narrow-and-widen ()
+  "Narrow to a node and its descendants, then restore the whole view."
+  (denote-tree-test--with-hierarchy-buffer
+   (goto-char (denote-tree-test--hierarchy-point-for "3a"))
+   (denote-tree-hierarchy-narrow-to-subtree)
+   (should (buffer-narrowed-p))
+   (should (denote-tree-test--hierarchy-point-for "3a1"))
+   (should-not (denote-tree-test--hierarchy-point-for "3b"))
+   (denote-tree-hierarchy-widen)
+   (should (denote-tree-test--hierarchy-point-for "3b"))))
+
+(ert-deftest denote-tree-test/hierarchy-refresh-renamed-and-cloned ()
+  "Refresh stays in renamed and cloned buffers and retains narrowing."
+  (let ((dir (make-temp-file "denote-tree-hierarchy-" t))
+        (denote-tree-mode nil)
+        original clone)
+    (unwind-protect
+        (save-window-excursion
+          (let* ((denote-directory (list dir))
+                 (denote-sequence-scheme 'alphanumeric)
+                 (root (denote-tree-test--make-org-note dir "20240101T100000" "1" "Root"))
+                 (_child (denote-tree-test--make-org-note dir "20240101T100100" "1a" "Child"))
+                 (_other (denote-tree-test--make-org-note dir "20240101T100200" "2" "Other")))
+            (denote-tree-mode 1)
+            (setq original (window-buffer (denote-sequence-view-hierarchy)))
+            (with-current-buffer original
+              (rename-buffer "*test renamed hierarchy*" t)
+              (goto-char (denote-tree--hierarchy-file-position root))
+              (denote-tree-hierarchy-narrow-to-subtree)
+              (revert-buffer)
+              (should (buffer-narrowed-p))
+              (should (equal (get-text-property (point-min) 'denote-sequence-hierarchy-file) root))
+              (denote-tree-hierarchy-clone "test clone")
+              (setq clone (current-buffer))
+              (should (buffer-narrowed-p))
+              (revert-buffer)
+              (should (equal (buffer-name) "*denote-hierarchy: test clone*"))
+              (denote-tree-hierarchy-widen)
+              (should-not (buffer-narrowed-p)))))
+      (denote-tree-mode -1)
+      (when (buffer-live-p clone) (kill-buffer clone))
+      (when (buffer-live-p original) (kill-buffer original))
+      (delete-directory dir t))))
+
+(ert-deftest denote-tree-test/hierarchy-dash-advice-and-marks ()
+  "Tree refresh survives dash advice in either order and retains marks."
+  (skip-unless (featurep 'denote-dash))
+  (let ((dir (make-temp-file "denote-tree-dash-" t))
+        (denote-tree-mode nil))
+    (unwind-protect
+        (save-window-excursion
+          (let* ((denote-directory (list dir))
+                 (denote-sequence-scheme 'alphanumeric)
+                 (root (denote-tree-test--make-org-note dir "20240101T100000" "1" "Root"))
+                 (_child (denote-tree-test--make-org-note dir "20240101T100100" "1a" "Child")))
+            (seq-do
+             (lambda (tree-first)
+               (unwind-protect
+                   (progn
+                     (if tree-first
+                         (progn (denote-tree-mode 1) (denote-dash-global--enable-advice))
+                       (denote-dash-global--enable-advice) (denote-tree-mode 1))
+                     (let ((buffer (window-buffer (denote-sequence-view-hierarchy))))
+                       (unwind-protect
+                           (with-current-buffer buffer
+                             (rename-buffer (generate-new-buffer-name "*renamed-test*") t)
+                             (setq-local denote-dash--marked-files (list root))
+                             (revert-buffer)
+                             (should (denote-dash--hierarchy-mark-overlay root))
+                             (goto-char (denote-tree--hierarchy-file-position root))
+                             (outline-hide-subtree)
+                             (denote-tree-hierarchy-clone "folded test")
+                             (let ((clone (current-buffer)))
+                               (unwind-protect
+                                   (progn
+                                     (should (denote-dash--hierarchy-mark-overlay root))
+                                     (should (seq-some (lambda (ov) (eq (overlay-get ov 'invisible) 'outline))
+                                                       (overlays-in (point-min) (point-max))))
+                                     (revert-buffer)
+                                     (should (denote-dash--hierarchy-mark-overlay root)))
+                                 (kill-buffer clone))))
+                         (kill-buffer buffer))))
+                 (denote-tree-mode -1)
+                 (denote-dash-global--disable-advice)))
+             '(t nil))))
+      (delete-directory dir t))))

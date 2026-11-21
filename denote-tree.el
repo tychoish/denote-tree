@@ -1575,8 +1575,8 @@ Like `denote-sequence-new-parent'."
   (add-to-list 'savehist-additional-variables 'denote-tree-hierarchy-fold-sequences))
 
 (defcustom denote-tree-mode-managed-settings
-  '((display-buffer-alist . ("\\`\\*denote-sequence-hierarchy"
-                             (display-buffer-reuse-window display-buffer-pop-up-window)))
+  '((display-buffer-alist . ("\\`\\*denote-\\(?:sequence-hierarchy\\|hierarchy:\\)"
+                             (display-buffer-same-window)))
     (denote-sequence-scheme . alphanumeric))
   "Alist of (SYMBOL . VALUE) settings managed globally by `denote-tree-mode'.
 For list variables like `display-buffer-alist', entries are added via
@@ -1620,6 +1620,105 @@ Restored when `denote-tree-mode' is disabled.")
             (makunbound sym))))))
   (setq denote-tree-mode--saved-settings nil))
 
+(defun denote-tree-hierarchy-narrow-to-subtree ()
+  "Narrow the hierarchy to the node at point and its descendants."
+  (interactive)
+  (unless (get-text-property (line-beginning-position) 'denote-sequence-hierarchy-file)
+    (user-error "No hierarchy node at point"))
+  (beginning-of-line)
+  (narrow-to-region (point) (save-excursion (outline-end-of-subtree) (point))))
+
+(defun denote-tree-hierarchy-widen ()
+  "Show the entire hierarchy."
+  (interactive)
+  (widen))
+
+(defun denote-tree--hierarchy-file-position (file)
+  "Return the position of FILE in the accessible hierarchy, or nil."
+  (save-excursion
+    (goto-char (point-min))
+    (when-let* ((match (text-property-search-forward
+                        'denote-sequence-hierarchy-file file t)))
+      (prop-match-beginning match))))
+
+(defun denote-tree--hierarchy-revert (prefix depth)
+  "Refresh the current hierarchy with PREFIX and DEPTH in place."
+  (let* ((narrowed (buffer-narrowed-p))
+         (root (and narrowed (get-text-property (point-min) 'denote-sequence-hierarchy-file)))
+         (file (get-text-property (line-beginning-position) 'denote-sequence-hierarchy-file))
+         (files (if (and prefix (not (string-blank-p prefix)))
+                    (denote-sequence-get-all-files-with-prefix prefix)
+                  (denote-sequence-get-all-files)))
+         (inhibit-read-only t))
+    (when depth
+      (setq files (denote-sequence-get-all-files-with-max-depth depth files)))
+    (widen)
+    (erase-buffer)
+    (seq-do #'denote-sequence--hierarchy-insert (denote-sequence-sort-files files))
+    (goto-char (point-min))
+    (run-hooks 'denote-sequence-hierarchy-mode-hook)
+    (when root
+      (let ((position (denote-tree--hierarchy-file-position root)))
+        (when position
+          (goto-char position)
+          (denote-tree-hierarchy-narrow-to-subtree))))
+    (when file
+      (when-let* ((position (denote-tree--hierarchy-file-position file)))
+        (goto-char position)))))
+
+(defun denote-tree--hierarchy-get-buffer (original prefix depth)
+  "Call ORIGINAL for PREFIX and DEPTH, then install in-place refresh."
+  (let ((buffer (funcall original prefix depth)))
+    (with-current-buffer buffer
+      (setq-local revert-buffer-function
+                  (lambda (_ignore-auto _no-confirm)
+                    (denote-tree--hierarchy-revert prefix depth))))
+    buffer))
+
+(defun denote-tree-hierarchy-clone (name)
+  "Clone the current hierarchy into a new independent buffer named NAME."
+  (interactive "sClone hierarchy name: ")
+  (when (string-blank-p name)
+    (user-error "View name cannot be empty"))
+  (let* ((source (current-buffer))
+         (start (point-min))
+         (end (point-max))
+         (narrowed (buffer-narrowed-p))
+         (position (point))
+         (revert revert-buffer-function)
+         (variables '(denote-dash-hierarchy--show-tags
+                      denote-dash-hierarchy--tag-filter
+                      denote-dash-hierarchy--excluded-tags
+                      denote-dash--marked-files))
+         (state (seq-keep (lambda (variable)
+                            (when (local-variable-p variable source)
+                              (cons variable (copy-tree (symbol-value variable)))))
+                          variables))
+         (contents (save-restriction (widen) (buffer-substring (point-min) (point-max))))
+         (folds (save-restriction
+                  (widen)
+                  (seq-filter (lambda (overlay)
+                                (eq (overlay-get overlay 'invisible) 'outline))
+                              (overlays-in (point-min) (point-max)))))
+         (buffer (generate-new-buffer (format "*denote-hierarchy: %s*" name))))
+    (with-current-buffer buffer
+      (insert contents)
+      (let ((denote-sequence-hierarchy-mode-hook nil))
+        (denote-sequence-hierarchy-mode))
+      (seq-do (lambda (entry) (set (make-local-variable (car entry)) (cdr entry))) state)
+      (setq-local revert-buffer-function revert)
+      (run-hooks 'denote-sequence-hierarchy-mode-hook)
+      (seq-do #'delete-overlay
+              (seq-filter (lambda (overlay) (eq (overlay-get overlay 'invisible) 'outline))
+                          (overlays-in (point-min) (point-max))))
+      (seq-do (lambda (overlay)
+                (move-overlay (copy-overlay overlay) (overlay-start overlay)
+                              (overlay-end overlay) buffer))
+              folds)
+      (when narrowed (narrow-to-region start end))
+      (goto-char position))
+    (switch-to-buffer buffer)))
+
 (defconst denote-tree--hierarchy-bindings
   '(("s" . denote-tree-new-sibling)
     ("c" . denote-tree-new-child)
@@ -1633,7 +1732,10 @@ Restored when `denote-tree-mode' is disabled.")
     ("k" . denote-tree-retag-sequence)
     ("z" . denote-tree-hierarchy-toggle-fold-sequence)
     ("h" . denote-tree-fix-sequence-frontmatter)
-    ("y" . denote-tree-fix-all-sequence-frontmatter))
+    ("y" . denote-tree-fix-all-sequence-frontmatter)
+    ("C-x n s" . denote-tree-hierarchy-narrow-to-subtree)
+    ("C-x n w" . denote-tree-hierarchy-widen)
+    ("C-c C-c" . denote-tree-hierarchy-clone))
   "Keybindings applied to hierarchy mode map.
 Used by `denote-tree-mode' on `denote-sequence-hierarchy-mode-map'.")
 
@@ -1665,6 +1767,8 @@ Used by `denote-tree-mode' on `denote-sequence-hierarchy-mode-map'.")
       (progn
         (denote-tree-mode--apply-settings)
         (denote-tree--enable-hierarchy-keys)
+        (advice-add 'denote-sequence--hierarchy-get-buffer :around
+                    #'denote-tree--hierarchy-get-buffer '((depth . -100)))
         (add-hook 'denote-sequence-hierarchy-mode-hook #'denote-tree--enable-hierarchy-keys)
         (add-hook 'flycheck-mode-hook #'denote-tree-setup-flycheck)
         (when (bound-and-true-p flycheck-mode)
@@ -1673,6 +1777,7 @@ Used by `denote-tree-mode' on `denote-sequence-hierarchy-mode-map'.")
         (when (boundp 'savehist-additional-variables)
           (denote-tree--register-savehist-variables)))
     (denote-tree-mode--revert-settings)
+    (advice-remove 'denote-sequence--hierarchy-get-buffer #'denote-tree--hierarchy-get-buffer)
     (remove-hook 'denote-sequence-hierarchy-mode-hook #'denote-tree--enable-hierarchy-keys)
     (denote-tree--disable-hierarchy-keys)
     (remove-hook 'flycheck-mode-hook #'denote-tree-setup-flycheck)
