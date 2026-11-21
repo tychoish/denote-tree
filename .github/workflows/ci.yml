@@ -37,13 +37,13 @@ jobs:
         uses: tychoish/elisp-ci@main
         with:
           elpaish: true
-          dependencies: "denote denote-sequence annotated-completing-read hitl"
+          dependencies: "denote denote-sequence annotated-completing-read hitl denote-dash"
 
       - name: Measure Code Coverage
         uses: tychoish/elisp-ci/coverage@main
         with:
           elpaish: true
-          dependencies: "denote denote-sequence annotated-completing-read hitl"
+          dependencies: "denote denote-sequence annotated-completing-read hitl denote-dash"
           report-format: "lcov"
           output-file: "coverage/lcov.info"
 

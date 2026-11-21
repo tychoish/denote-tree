@@ -1957,45 +1957,45 @@ line: `denote-sequence-hierarchy-level' and `denote-sequence-hierarchy-file'
       (when (buffer-live-p original) (kill-buffer original))
       (delete-directory dir t))))
 
-(ert-deftest denote-tree-test/hierarchy-dash-advice-and-marks ()
-  "Tree refresh survives dash advice in either order and retains marks."
-  (skip-unless (featurep 'denote-dash))
-  (let ((dir (make-temp-file "denote-tree-dash-" t))
-        (denote-tree-mode nil))
-    (unwind-protect
-        (save-window-excursion
-          (let* ((denote-directory (list dir))
-                 (denote-sequence-scheme 'alphanumeric)
-                 (root (denote-tree-test--make-org-note dir "20240101T100000" "1" "Root"))
-                 (_child (denote-tree-test--make-org-note dir "20240101T100100" "1a" "Child")))
-            (seq-do
-             (lambda (tree-first)
-               (unwind-protect
-                   (progn
-                     (if tree-first
-                         (progn (denote-tree-mode 1) (denote-dash-global--enable-advice))
-                       (denote-dash-global--enable-advice) (denote-tree-mode 1))
-                     (let ((buffer (window-buffer (denote-sequence-view-hierarchy))))
-                       (unwind-protect
-                           (with-current-buffer buffer
-                             (rename-buffer (generate-new-buffer-name "*renamed-test*") t)
-                             (setq-local denote-dash--marked-files (list root))
-                             (revert-buffer)
-                             (should (denote-dash--hierarchy-mark-overlay root))
-                             (goto-char (denote-tree--hierarchy-file-position root))
-                             (outline-hide-subtree)
-                             (denote-tree-hierarchy-clone "folded test")
-                             (let ((clone (current-buffer)))
-                               (unwind-protect
-                                   (progn
-                                     (should (denote-dash--hierarchy-mark-overlay root))
-                                     (should (seq-some (lambda (ov) (eq (overlay-get ov 'invisible) 'outline))
-                                                       (overlays-in (point-min) (point-max))))
-                                     (revert-buffer)
-                                     (should (denote-dash--hierarchy-mark-overlay root)))
-                                 (kill-buffer clone))))
-                         (kill-buffer buffer))))
-                 (denote-tree-mode -1)
-                 (denote-dash-global--disable-advice)))
-             '(t nil))))
-      (delete-directory dir t))))
+(when (require 'denote-dash nil t)
+  (ert-deftest denote-tree-test/hierarchy-dash-advice-and-marks ()
+    "Tree refresh survives dash advice in either order and retains marks."
+    (let ((dir (make-temp-file "denote-tree-dash-" t))
+          (denote-tree-mode nil))
+      (unwind-protect
+          (save-window-excursion
+            (let* ((denote-directory (list dir))
+                   (denote-sequence-scheme 'alphanumeric)
+                   (root (denote-tree-test--make-org-note dir "20240101T100000" "1" "Root"))
+                   (_child (denote-tree-test--make-org-note dir "20240101T100100" "1a" "Child")))
+              (seq-do
+               (lambda (tree-first)
+                 (unwind-protect
+                     (progn
+                       (if tree-first
+                           (progn (denote-tree-mode 1) (denote-dash-global--enable-advice))
+                         (denote-dash-global--enable-advice) (denote-tree-mode 1))
+                       (let ((buffer (window-buffer (denote-sequence-view-hierarchy))))
+                         (unwind-protect
+                             (with-current-buffer buffer
+                               (rename-buffer (generate-new-buffer-name "*renamed-test*") t)
+                               (setq-local denote-dash--marked-files (list root))
+                               (revert-buffer)
+                               (should (denote-dash--hierarchy-mark-overlay root))
+                               (goto-char (denote-tree--hierarchy-file-position root))
+                               (outline-hide-subtree)
+                               (denote-tree-hierarchy-clone "folded test")
+                               (let ((clone (current-buffer)))
+                                 (unwind-protect
+                                     (progn
+                                       (should (denote-dash--hierarchy-mark-overlay root))
+                                       (should (seq-some (lambda (ov) (eq (overlay-get ov 'invisible) 'outline))
+                                                         (overlays-in (point-min) (point-max))))
+                                       (revert-buffer)
+                                       (should (denote-dash--hierarchy-mark-overlay root)))
+                                   (kill-buffer clone))))
+                           (kill-buffer buffer))))
+                   (denote-tree-mode -1)
+                   (denote-dash-global--disable-advice)))
+               '(t nil))))
+        (delete-directory dir t)))))
